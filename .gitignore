@@ -1,0 +1,59 @@
+# ----- Python -----
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+downloads/
+eggs/
+.eggs/
+*.egg-info/
+*.egg
+
+# ----- Virtual environments -----
+.venv/
+venv/
+env/
+ENV/
+
+# ----- Secrets (NEVER commit) -----
+.env
+.env.local
+.env.*.local
+schwab_token.json
+*.token
+
+# ----- IDE / editor -----
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ----- macOS / Windows / Linux junk -----
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+Thumbs.db
+Desktop.ini
+ehthumbs.db
+$RECYCLE.BIN/
+
+# ----- Logs / coverage -----
+*.log
+logs/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# ----- PyInstaller -----
+build/
+dist/
+*.spec.bak
+
+# ----- Keep the example so first-time users know the .env shape -----
+!.env.example

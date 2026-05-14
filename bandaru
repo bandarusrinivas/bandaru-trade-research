@@ -1,0 +1,341 @@
+#!/usr/bin/env bash
+# bandaru — Bandaru Trade Analysis Platform CLI
+#
+# Usage:
+#   bandaru start          # Launch dashboard (Schwab default; falls back to Yahoo if OAuth fails)
+#   bandaru start yahoo    # Force Yahoo Finance (~15-min delayed)
+#   bandaru start demo     # Force synthetic demo data
+#   bandaru stop           # Kill the Flask server; keep terminals open
+#   bandaru exit           # Stop + close Safari tabs + close all related Terminal windows
+#   bandaru status         # Show server state + data source + token freshness
+#   bandaru auth           # Re-run the Schwab OAuth flow
+#   bandaru open           # Open Safari to the dashboard (no server changes)
+#   bandaru tail           # Tail the live Flask log (if running)
+#   bandaru help           # Show this help
+#
+# The script is location-aware — it works whether invoked from inside the
+# project folder, from your $PATH, or via a symlink.
+
+set -u
+
+# ----- Resolve project directory (follows symlinks) ---------------------------
+SOURCE="${BASH_SOURCE[0]}"
+while [ -h "$SOURCE" ]; do
+    DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+    SOURCE="$(readlink "$SOURCE")"
+    [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE"
+done
+PROJECT_DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+
+# ----- Sanity checks ----------------------------------------------------------
+if [ ! -f "$PROJECT_DIR/app.py" ]; then
+    echo "ERROR: $PROJECT_DIR/app.py not found. Did you move this script away from the project?" >&2
+    exit 1
+fi
+
+cd "$PROJECT_DIR"
+
+VENV="$PROJECT_DIR/.venv"
+TOKEN_FILE="$PROJECT_DIR/schwab_token.json"
+PORT=5000
+
+# ----- Helpers ----------------------------------------------------------------
+c_reset='\033[0m'; c_bold='\033[1m'; c_green='\033[32m'; c_red='\033[31m'
+c_yellow='\033[33m'; c_blue='\033[34m'; c_dim='\033[2m'
+
+print_banner() {
+    echo -e "${c_blue}${c_bold}================================================${c_reset}"
+    echo -e "${c_blue}${c_bold}  Bandaru Trade Analysis Platform — $1${c_reset}"
+    echo -e "${c_blue}${c_bold}================================================${c_reset}"
+}
+
+port_in_use()      { lsof -ti:$PORT >/dev/null 2>&1; }
+get_port_pids()    { lsof -ti:$PORT 2>/dev/null; }
+kill_port_pids()   { get_port_pids | xargs kill -9 2>/dev/null; }
+kill_app_orphans() { pgrep -f "python.*(app.py|schwab_setup.py)" 2>/dev/null | xargs kill -9 2>/dev/null; }
+
+get_data_source() {
+    local src="${DATA_SOURCE:-}"
+    if [ -z "$src" ] && [ -f .env ]; then
+        src=$(grep -E '^DATA_SOURCE=' .env | head -1 | cut -d'=' -f2 | tr -d '"' | tr -d "'" | tr -d '[:space:]')
+    fi
+    echo "${src:-schwab}"
+}
+
+require_venv() {
+    if [ ! -d "$VENV" ]; then
+        echo -e "${c_red}Virtual environment not found at $VENV${c_reset}" >&2
+        echo -e "${c_dim}Run setup.command first to install dependencies.${c_reset}" >&2
+        exit 1
+    fi
+}
+
+# ----- Subcommands ------------------------------------------------------------
+
+cmd_start() {
+    local src="${1:-$(get_data_source)}"
+    require_venv
+
+    print_banner "START ($src)"
+
+    # Free port 5000 if previously running
+    if port_in_use; then
+        echo -e "${c_yellow}→ Stopping previous server on port $PORT…${c_reset}"
+        kill_port_pids
+        sleep 1
+    fi
+
+    # shellcheck disable=SC1091
+    source "$VENV/bin/activate"
+
+    # Schwab needs a token. If missing, run OAuth first.
+    if [ "$src" = "schwab" ] && [ ! -f "$TOKEN_FILE" ]; then
+        echo -e "${c_yellow}→ No Schwab token. Running OAuth flow…${c_reset}"
+        if ! python schwab_setup.py; then
+            echo -e "${c_red}OAuth failed. Falling back to Yahoo for this session.${c_reset}"
+            src="yahoo"
+        fi
+    fi
+
+    echo -e "${c_green}→ Starting Flask on http://127.0.0.1:$PORT …${c_reset}"
+    echo -e "${c_dim}  Press Ctrl+C to stop.${c_reset}"
+    ( sleep 2 && open -a Safari "http://127.0.0.1:$PORT" ) &
+    DATA_SOURCE="$src" exec python app.py
+}
+
+cmd_stop() {
+    print_banner "STOP"
+    if port_in_use; then
+        local pids; pids=$(get_port_pids)
+        echo -e "${c_yellow}→ Killing Flask (pid: $pids)…${c_reset}"
+        kill_port_pids
+        sleep 0.5
+        if port_in_use; then
+            echo -e "${c_red}⚠ Server still alive on port $PORT.${c_reset}"
+            return 1
+        else
+            echo -e "${c_green}✓ Server stopped.${c_reset}"
+        fi
+    else
+        echo -e "${c_dim}No server running on port $PORT.${c_reset}"
+    fi
+
+    local orphans; orphans=$(pgrep -f "python.*(app.py|schwab_setup.py)" 2>/dev/null)
+    if [ -n "$orphans" ]; then
+        echo -e "${c_yellow}→ Killing orphan Python processes: $orphans${c_reset}"
+        kill_app_orphans
+    fi
+}
+
+cmd_status() {
+    print_banner "STATUS"
+    local src; src=$(get_data_source)
+    echo -e "${c_bold}Project:${c_reset}     $PROJECT_DIR"
+    echo -e "${c_bold}Data source:${c_reset} $src   (override with: bandaru start <source>)"
+
+    if port_in_use; then
+        local pids; pids=$(get_port_pids)
+        echo -e "${c_bold}Server:${c_reset}      ${c_green}● RUNNING${c_reset}  pid=$pids  http://127.0.0.1:$PORT"
+    else
+        echo -e "${c_bold}Server:${c_reset}      ${c_dim}● stopped${c_reset}"
+    fi
+
+    if [ -f "$TOKEN_FILE" ]; then
+        local age_s; age_s=$(( $(date +%s) - $(stat -f%m "$TOKEN_FILE" 2>/dev/null || stat -c%Y "$TOKEN_FILE") ))
+        local age_d=$(( age_s / 86400 ))
+        local age_h=$(( (age_s % 86400) / 3600 ))
+        if [ "$age_d" -ge 7 ]; then
+            echo -e "${c_bold}Schwab token:${c_reset} ${c_red}EXPIRED${c_reset} (${age_d}d old) — run: bandaru auth"
+        elif [ "$age_d" -ge 5 ]; then
+            echo -e "${c_bold}Schwab token:${c_reset} ${c_yellow}${age_d}d ${age_h}h old${c_reset} (renews automatically; manual refresh: bandaru auth)"
+        else
+            echo -e "${c_bold}Schwab token:${c_reset} ${c_green}fresh${c_reset} (${age_d}d ${age_h}h old)"
+        fi
+    else
+        echo -e "${c_bold}Schwab token:${c_reset} ${c_yellow}missing${c_reset} — run: bandaru auth"
+    fi
+
+    if [ -f .env ]; then
+        local has_key
+        has_key=$(grep -c '^SCHWAB_API_KEY=.\+' .env)
+        if [ "$has_key" -gt 0 ]; then
+            echo -e "${c_bold}.env keys:${c_reset}   ${c_green}set${c_reset}"
+        else
+            echo -e "${c_bold}.env keys:${c_reset}   ${c_red}MISSING SCHWAB_API_KEY/APP_SECRET${c_reset}"
+        fi
+    else
+        echo -e "${c_bold}.env keys:${c_reset}   ${c_red}.env file missing${c_reset}"
+    fi
+}
+
+cmd_auth() {
+    require_venv
+    print_banner "OAUTH"
+    # shellcheck disable=SC1091
+    source "$VENV/bin/activate"
+    # Use the auto-flow helper if available (reads URL from Safari directly);
+    # fall back to the manual prompt-based flow otherwise.
+    if [ -f schwab_oauth.py ]; then
+        python schwab_oauth.py
+    else
+        python schwab_setup.py
+    fi
+}
+
+cmd_open() {
+    open -a Safari "http://127.0.0.1:$PORT"
+    echo -e "${c_green}Opened Safari to http://127.0.0.1:$PORT${c_reset}"
+}
+
+cmd_tail() {
+    if ! port_in_use; then
+        echo -e "${c_red}Server is not running. Start it first: bandaru start${c_reset}"
+        return 1
+    fi
+    # Tail the Flask process's stdout via lsof + ps trick is unreliable;
+    # easier path: just remind user where logs go.
+    echo -e "${c_dim}Flask logs print to whichever Terminal launched the server.${c_reset}"
+    echo -e "${c_dim}If you started via 'bandaru start' in this shell, scroll up here.${c_reset}"
+    echo -e "${c_dim}For a separate log stream, run: bandaru stop; bandaru start > ~/bandaru.log 2>&1 &${c_reset}"
+}
+
+cmd_exit() {
+    print_banner "FULL EXIT"
+
+    # 1. Stop server
+    if port_in_use; then
+        local pids; pids=$(get_port_pids)
+        echo -e "${c_yellow}→ Killing Flask (pid: $pids)…${c_reset}"
+        kill_port_pids
+    fi
+    kill_app_orphans
+
+    # 2. Close Safari tabs at localhost:5000 / 127.0.0.1:5000
+    echo -e "${c_yellow}→ Closing Safari tabs at the dashboard…${c_reset}"
+    osascript <<'APPLESCRIPT' 2>/dev/null
+tell application "Safari"
+    if it is running then
+        set winList to every window
+        repeat with w in winList
+            try
+                set tabList to every tab of w
+                set tabIdx to (count of tabList)
+                repeat while tabIdx > 0
+                    set t to item tabIdx of tabList
+                    try
+                        set tabUrl to URL of t
+                        if tabUrl is not missing value then
+                            if (tabUrl contains "127.0.0.1:5000") or (tabUrl contains "localhost:5000") then
+                                close t
+                            end if
+                        end if
+                    end try
+                    set tabIdx to tabIdx - 1
+                end repeat
+            end try
+        end repeat
+    end if
+end tell
+APPLESCRIPT
+
+    # 3. Close all Terminal windows running our app — but NOT this one if invoked from CLI.
+    # (If invoked via double-click on a .command, we'll close ourselves too at the end.)
+    local this_tty
+    this_tty="$(ps -o tty= -p $$ | tr -d ' ')"
+    echo -e "${c_yellow}→ Closing Terminal windows running the app…${c_reset}"
+    osascript - "$this_tty" <<'APPLESCRIPT' 2>/dev/null
+on run argv
+    set thisTty to item 1 of argv
+    tell application "Terminal"
+        if it is running then
+            set winList to every window
+            repeat with w in winList
+                try
+                    set tabList to every tab of w
+                    repeat with t in tabList
+                        try
+                            set theTty to tty of t
+                            if theTty does not end with thisTty then
+                                set procs to processes of t
+                                set proclist to procs as string
+                                if (proclist contains "app.py") or ¬
+                                    (proclist contains "schwab_setup") or ¬
+                                    (proclist contains "start-app") or ¬
+                                    (proclist contains "run-schwab") or ¬
+                                    (proclist contains "run-app") or ¬
+                                    (proclist contains "run-live") or ¬
+                                    (proclist contains "run-auth") or ¬
+                                    (proclist contains "bandaru") then
+                                    try
+                                        close t
+                                    on error
+                                        try
+                                            close w
+                                        end try
+                                    end try
+                                end if
+                            end if
+                        end try
+                    end repeat
+                end try
+            end repeat
+        end if
+    end tell
+end run
+APPLESCRIPT
+
+    echo -e "${c_green}✓ Server stopped. Safari tabs closed. App terminals closed.${c_reset}"
+}
+
+cmd_help() {
+    cat <<HELP
+bandaru — Bandaru Trade Analysis Platform CLI
+
+USAGE:
+  bandaru <command> [args]
+
+COMMANDS:
+  start [source]   Launch the dashboard
+                     source: schwab | yahoo | demo  (default: from .env or 'schwab')
+  stop             Kill the Flask server; keep terminals open
+  exit             Full cleanup: stop server + close Safari tabs + close terminals
+  status           Show server state, data source, token freshness
+  auth             Re-run the Schwab OAuth flow
+  open             Open Safari to http://127.0.0.1:5000 (no server changes)
+  tail             Show where to find Flask logs
+  help             Show this message
+
+EXAMPLES:
+  bandaru start             # boot with current .env settings
+  bandaru start yahoo       # force Yahoo for this session
+  bandaru status            # check what's running
+  bandaru stop && bandaru start    # quick restart
+  bandaru exit              # end-of-day cleanup
+
+INSTALL TO PATH (so you can run 'bandaru' from any directory):
+  sudo ln -sf "$PROJECT_DIR/bandaru" /usr/local/bin/bandaru
+  # or, no sudo needed if ~/bin is in your PATH:
+  mkdir -p ~/bin && ln -sf "$PROJECT_DIR/bandaru" ~/bin/bandaru
+
+PROJECT DIR:
+  $PROJECT_DIR
+HELP
+}
+
+# ----- Dispatch ---------------------------------------------------------------
+case "${1:-help}" in
+    start)   shift; cmd_start "$@" ;;
+    stop)    cmd_stop ;;
+    exit|quit) cmd_exit ;;
+    status|stat|st) cmd_status ;;
+    auth|oauth|login) cmd_auth ;;
+    open|browser) cmd_open ;;
+    tail|logs|log) cmd_tail ;;
+    help|--help|-h) cmd_help ;;
+    *)
+        echo -e "${c_red}Unknown command: $1${c_reset}" >&2
+        echo "" >&2
+        cmd_help >&2
+        exit 1
+        ;;
+esac

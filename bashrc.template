@@ -1,0 +1,42 @@
+# ===== BEGIN: SPY 0DTE Analyzer block =====
+# Added by install-shell-profile.command — remove this whole block to undo.
+
+# --- Homebrew on PATH (Apple Silicon path first, then Intel Mac path) ---
+if [ -x /opt/homebrew/bin/brew ]; then
+    eval "$(/opt/homebrew/bin/brew shellenv)"
+elif [ -x /usr/local/bin/brew ]; then
+    eval "$(/usr/local/bin/brew shellenv)"
+fi
+
+# --- pip user-site binaries (e.g. pipx-installed tools) ---
+export PATH="$HOME/.local/bin:$PATH"
+
+# --- Python encoding sanity defaults ---
+export PYTHONIOENCODING=utf-8
+export LANG=${LANG:-en_US.UTF-8}
+export LC_ALL=${LC_ALL:-en_US.UTF-8}
+
+# --- SPY 0DTE Analyzer project shortcuts ---
+# SPY_DTE_DIR is set by the installer to where this project lives.
+export SPY_DTE_DIR="__SPY_DTE_DIR__"
+
+spy-shell() {
+    cd "$SPY_DTE_DIR" && source .venv/bin/activate
+}
+spy-run() {
+    cd "$SPY_DTE_DIR" && source .venv/bin/activate && python app.py
+}
+spy-auth() {
+    cd "$SPY_DTE_DIR" && source .venv/bin/activate && python schwab_setup.py
+}
+spy-update() {
+    cd "$SPY_DTE_DIR" && source .venv/bin/activate && pip install -r requirements.txt
+}
+
+# --- A readable, colored prompt (only if PS1 already set, i.e. interactive) ---
+if [ -n "$PS1" ] && [ -z "$SPY_PS1_SET" ]; then
+    export PS1='\[\e[36m\]\u\[\e[0m\]:\[\e[33m\]\w\[\e[0m\]\$ '
+    export SPY_PS1_SET=1
+fi
+
+# ===== END: SPY 0DTE Analyzer block =====
