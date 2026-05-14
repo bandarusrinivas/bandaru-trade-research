@@ -34,7 +34,7 @@ if lsof -ti:5000 >/dev/null 2>&1; then
 fi
 
 echo "================================================"
-echo "  Bandaru Trade Analysis — LIVE (Unusual Whales)"
+echo "  Bandaru Trade Research — LIVE (Unusual Whales)"
 echo "================================================"
 echo ""
 echo "Real-time SPY quote + 0DTE options chain from Unusual Whales."

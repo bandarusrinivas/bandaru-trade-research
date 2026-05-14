@@ -1,11 +1,11 @@
-# PyInstaller spec for Bandaru Trade Analysis Platform.
+# PyInstaller spec for Bandaru Trade Research.
 #
 # Build:
 #   pyinstaller bandaru.spec --noconfirm
 #
 # Output:
-#   dist/Bandaru Trade Analysis        (folder + executable; cross-platform)
-#   dist/Bandaru Trade Analysis.app    (macOS only, app bundle)
+#   dist/Bandaru Trade Research        (folder + executable; cross-platform)
+#   dist/Bandaru Trade Research.app    (macOS only, app bundle)
 #
 # Distribute the folder + .app (Mac) or the folder + .exe (Windows).
 
@@ -17,6 +17,10 @@ datas = [
     ("templates", "templates"),
     ("static",    "static"),
     (".env.example", "."),
+    ("VERSION", "."),
+    ("CHANGELOG.md", "."),
+    ("PRODUCT_GUIDE.md", "."),
+    ("docs", "docs"),
 ]
 
 # Hidden imports — yfinance, schwab-py, authlib, etc. have dynamic imports
@@ -67,7 +71,7 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name="Bandaru Trade Analysis",
+    name="Bandaru Trade Research",
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -87,19 +91,19 @@ coll = COLLECT(
     strip=False,
     upx=True,
     upx_exclude=[],
-    name="Bandaru Trade Analysis",
+    name="Bandaru Trade Research",
 )
 
 # macOS: produce a .app bundle as well
 if sys.platform == "darwin":
     app = BUNDLE(
         coll,
-        name="Bandaru Trade Analysis.app",
+        name="Bandaru Trade Research.app",
         icon=None,
-        bundle_identifier="com.bandaru.tradeanalysis",
+        bundle_identifier="com.bandaru.traderesearch",
         info_plist={
-            "CFBundleName": "Bandaru Trade Analysis",
-            "CFBundleDisplayName": "Bandaru Trade Analysis",
+            "CFBundleName": "Bandaru Trade Research",
+            "CFBundleDisplayName": "Bandaru Trade Research",
             "CFBundleShortVersionString": "1.0.0",
             "CFBundleVersion": "1.0.0",
             "NSHighResolutionCapable": True,

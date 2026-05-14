@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# Bandaru Trade Analysis — STOP
+# Bandaru Trade Research — STOP
 # Kills the Flask server on port 5000. Leaves the Terminal window open.
 
 set -e
 cd "$(dirname "$0")"
 
 echo "================================================"
-echo "  Bandaru Trade Analysis — STOP"
+echo "  Bandaru Trade Research — STOP"
 echo "================================================"
 echo ""
 

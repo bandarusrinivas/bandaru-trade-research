@@ -291,6 +291,18 @@ body {
 }
 .adx-delta.up   { color: #26d96e; background: rgba(38,217,110,0.15); }
 .adx-delta.down { color: #ff7a8c; background: rgba(255,122,140,0.15); }
+.version-chip {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, rgba(88,166,255,0.18), rgba(38,217,110,0.18));
+  border: 1px solid rgba(88,166,255,0.4);
+  color: #58a6ff;
+  font-size: 11px;
+  font-weight: 600;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+}
 .chart-zoom {
   display: inline-flex; gap: 2px; margin-left: 4px;
   background: var(--panel-2); border: 1px solid var(--border);

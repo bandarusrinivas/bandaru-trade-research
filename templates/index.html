@@ -3,14 +3,14 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Bandaru — Trade Analysis Platform</title>
+  <title>Bandaru — Trade Research</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
 </head>
 <body>
   <header class="topbar">
     <div class="brand">
       <span class="logo">Bandaru</span>
-      <span class="tag">Trade Analysis Platform</span>
+      <span class="tag">Trade Research</span>
     </div>
     <div class="ticker-picker">
       <label>Ticker</label>
@@ -411,8 +411,9 @@
       <span class="legend-item"><span class="dot grey"></span> STANDBY / Neutral</span>
     </div>
     <p class="footer-text">
-      <strong>Bandaru — Trade Analysis Platform.</strong>
-      Data source shown in top banner. Educational use only — not financial advice.
+      <strong>Bandaru — Trade Research</strong>
+      <span class="version-chip" title="Application version (semver)">v{{ app_version }}</span>
+      &middot; Data source shown in top banner. Educational use only — not financial advice.
       Premium projections use a simple delta × move approximation.
     </p>
   </footer>

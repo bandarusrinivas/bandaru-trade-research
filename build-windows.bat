@@ -1,6 +1,6 @@
 @echo off
-REM Build the Bandaru Trade Analysis Platform as a Windows .exe.
-REM Output: dist\Bandaru Trade Analysis\Bandaru Trade Analysis.exe
+REM Build the Bandaru Trade Research as a Windows .exe.
+REM Output: dist\Bandaru Trade Research\Bandaru Trade Research.exe
 REM Double-click the .exe to launch — no Python install required on target PC.
 
 setlocal
@@ -19,7 +19,7 @@ if not exist ".venv\Scripts\activate.bat" (
 call .venv\Scripts\activate.bat
 
 echo ================================================
-echo   Building Bandaru Trade Analysis - Windows
+echo   Building Bandaru Trade Research - Windows
 echo ================================================
 
 echo Installing PyInstaller if needed...
@@ -38,10 +38,10 @@ echo   Build complete!
 echo ================================================
 echo.
 echo Output:
-echo   dist\Bandaru Trade Analysis\Bandaru Trade Analysis.exe
+echo   dist\Bandaru Trade Research\Bandaru Trade Research.exe
 echo.
 echo To distribute:
-echo   1. Right-click "Bandaru Trade Analysis" folder ^> Send to ^> Compressed (zipped) folder
+echo   1. Right-click "Bandaru Trade Research" folder ^> Send to ^> Compressed (zipped) folder
 echo   2. Share the resulting .zip with anyone on Windows
 echo   3. They unzip and double-click the .exe to run - no Python needed!
 echo.

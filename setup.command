@@ -7,7 +7,7 @@ cd "$(dirname "$0")"
 PROJECT_DIR="$(pwd -P)"
 
 echo "================================================"
-echo "  Bandaru Trade Analysis Platform — One-Click Setup"
+echo "  Bandaru Trade Research — One-Click Setup"
 echo "================================================"
 echo ""
 echo "Project directory: $PROJECT_DIR"

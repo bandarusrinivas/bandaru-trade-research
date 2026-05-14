@@ -1,4 +1,4 @@
-"""Comprehensive validation suite for Bandaru Trade Analysis Platform.
+"""Comprehensive validation suite for Bandaru Trade Research.
 
 Run from the project root:
     python tests/test_all.py

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Build the Bandaru Trade Analysis Platform as a macOS .app bundle.
-# Output: dist/Bandaru Trade Analysis.app
+# Build the Bandaru Trade Research as a macOS .app bundle.
+# Output: dist/Bandaru Trade Research.app
 # Double-click that .app to launch — no Python install required on the target Mac.
 
 set -e
@@ -16,7 +16,7 @@ fi
 source .venv/bin/activate
 
 echo "================================================"
-echo "  Building Bandaru Trade Analysis — macOS"
+echo "  Building Bandaru Trade Research — macOS"
 echo "================================================"
 
 echo "→ Installing PyInstaller (if needed)…"
@@ -34,16 +34,16 @@ echo "  Build complete!"
 echo "================================================"
 echo ""
 echo "Output:"
-echo "  dist/Bandaru Trade Analysis.app    ← double-click to run"
-echo "  dist/Bandaru Trade Analysis/       ← folder version (cross-platform)"
+echo "  dist/Bandaru Trade Research.app    ← double-click to run"
+echo "  dist/Bandaru Trade Research/       ← folder version (cross-platform)"
 echo ""
 echo "To distribute:"
-echo "  1. Right-click 'Bandaru Trade Analysis.app' → Compress"
+echo "  1. Right-click 'Bandaru Trade Research.app' → Compress"
 echo "  2. Share the resulting .zip with anyone on macOS"
 echo "  3. They double-click to run — no Python needed!"
 echo ""
 echo "Optional — create a .dmg disk image:"
-echo "  cd dist && hdiutil create -srcfolder 'Bandaru Trade Analysis.app' \\"
-echo "    -volname 'Bandaru Trade Analysis' BandaruTradeAnalysis.dmg"
+echo "  cd dist && hdiutil create -srcfolder 'Bandaru Trade Research.app' \\"
+echo "    -volname 'Bandaru Trade Research' BandaruTradeResearch.dmg"
 echo ""
 read -p "Press Enter to close…"

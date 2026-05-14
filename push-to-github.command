@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Bandaru Trade Analysis — Push to GitHub (self-healing version)
+# Bandaru Trade Research — Push to GitHub (self-healing version)
 # Cleans stale git state, initializes fresh, commits, creates repo, pushes.
 
 set +e   # Don't bail on individual command failures — we recover.
@@ -7,8 +7,8 @@ cd "$(dirname "$0")"
 PROJECT_DIR="$(pwd -P)"
 
 GH_USER="bandarusrinivas"
-REPO_NAME="bandaru-trade-analysis"
-COMMIT_MSG="${1:-Initial commit — Bandaru Trade Analysis Platform}"
+REPO_NAME="bandaru-trade-research"
+COMMIT_MSG="${1:-Initial commit — Bandaru Trade Research}"
 
 echo ""
 echo "================================================"

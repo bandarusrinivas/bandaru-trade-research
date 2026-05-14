@@ -14,7 +14,7 @@ fi
 source .venv/bin/activate
 
 echo "================================================"
-echo "  Bandaru Trade Analysis — LIVE (Schwab)"
+echo "  Bandaru Trade Research — LIVE (Schwab)"
 echo "================================================"
 echo ""
 echo "Starting on http://localhost:5000"

@@ -1,0 +1,75 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 400" font-family="-apple-system, sans-serif">
+  <rect width="1000" height="400" fill="#0d1117"/>
+  <text x="500" y="40" fill="#e6edf3" font-size="20" font-weight="bold" text-anchor="middle">Release Workflow — Semantic Versioning</text>
+
+  <!-- Step 1 -->
+  <rect x="40" y="80" width="200" height="120" fill="#161b22" stroke="#58a6ff" stroke-width="2" rx="8"/>
+  <text x="140" y="105" fill="#58a6ff" font-size="14" font-weight="bold" text-anchor="middle">① Edit VERSION</text>
+  <text x="50" y="135" fill="#97a1ab" font-size="11">Open the VERSION file</text>
+  <text x="50" y="150" fill="#97a1ab" font-size="11">Change the number:</text>
+  <text x="50" y="175" fill="#26d96e" font-family="ui-monospace, Menlo" font-size="14" font-weight="bold">1.0.0  →  1.1.0</text>
+
+  <!-- Arrow -->
+  <path d="M 240 140 L 290 140" stroke="#58a6ff" stroke-width="2" marker-end="url(#a)"/>
+
+  <!-- Step 2 -->
+  <rect x="300" y="80" width="200" height="120" fill="#161b22" stroke="#58a6ff" stroke-width="2" rx="8"/>
+  <text x="400" y="105" fill="#58a6ff" font-size="14" font-weight="bold" text-anchor="middle">② Update CHANGELOG</text>
+  <text x="310" y="135" fill="#97a1ab" font-size="11">Add a new section:</text>
+  <text x="310" y="160" fill="#e6edf3" font-family="ui-monospace, Menlo" font-size="11">## [1.1.0]</text>
+  <text x="310" y="175" fill="#97a1ab" font-family="ui-monospace, Menlo" font-size="11">### Added</text>
+  <text x="310" y="190" fill="#97a1ab" font-family="ui-monospace, Menlo" font-size="11">- New feature X</text>
+
+  <!-- Arrow -->
+  <path d="M 500 140 L 550 140" stroke="#58a6ff" stroke-width="2" marker-end="url(#a)"/>
+
+  <!-- Step 3 -->
+  <rect x="560" y="80" width="200" height="120" fill="#161b22" stroke="#58a6ff" stroke-width="2" rx="8"/>
+  <text x="660" y="105" fill="#58a6ff" font-size="14" font-weight="bold" text-anchor="middle">③ Commit + Tag</text>
+  <text x="570" y="135" fill="#e6edf3" font-family="ui-monospace, Menlo" font-size="10">$ git commit -am</text>
+  <text x="580" y="150" fill="#e6edf3" font-family="ui-monospace, Menlo" font-size="10">"Release v1.1.0"</text>
+  <text x="570" y="170" fill="#e6edf3" font-family="ui-monospace, Menlo" font-size="10">$ git tag v1.1.0</text>
+  <text x="570" y="185" fill="#e6edf3" font-family="ui-monospace, Menlo" font-size="10">$ git push --tags</text>
+
+  <!-- Arrow -->
+  <path d="M 760 140 L 810 140" stroke="#58a6ff" stroke-width="2" marker-end="url(#a)"/>
+
+  <!-- Step 4 (auto) -->
+  <rect x="820" y="80" width="160" height="120" fill="#161b22" stroke="#26d96e" stroke-width="2" rx="8"/>
+  <text x="900" y="105" fill="#26d96e" font-size="14" font-weight="bold" text-anchor="middle">④ AUTO</text>
+  <text x="830" y="130" fill="#97a1ab" font-size="10">GitHub Actions:</text>
+  <text x="830" y="148" fill="#26d96e" font-size="10">• Builds .app</text>
+  <text x="830" y="163" fill="#26d96e" font-size="10">• Builds .exe</text>
+  <text x="830" y="178" fill="#26d96e" font-size="10">• Creates Release</text>
+  <text x="830" y="193" fill="#26d96e" font-size="10">• Attaches zips</text>
+
+  <!-- Semver explanation -->
+  <text x="500" y="250" fill="#e6edf3" font-size="14" font-weight="bold" text-anchor="middle">Which number to bump?</text>
+
+  <rect x="40" y="270" width="290" height="110" fill="rgba(248,81,73,0.10)" stroke="#ff7a8c" rx="8"/>
+  <text x="60" y="295" fill="#ff7a8c" font-size="13" font-weight="bold">MAJOR  (X.0.0)</text>
+  <text x="60" y="315" fill="#97a1ab" font-size="11">Breaking changes</text>
+  <text x="60" y="332" fill="#e6edf3" font-size="11">• .env format change</text>
+  <text x="60" y="348" fill="#e6edf3" font-size="11">• API endpoint removal</text>
+  <text x="60" y="364" fill="#e6edf3" font-size="11">• Indicator output shape change</text>
+
+  <rect x="350" y="270" width="290" height="110" fill="rgba(88,166,255,0.10)" stroke="#58a6ff" rx="8"/>
+  <text x="370" y="295" fill="#58a6ff" font-size="13" font-weight="bold">MINOR  (1.X.0)</text>
+  <text x="370" y="315" fill="#97a1ab" font-size="11">Backwards-compatible features</text>
+  <text x="370" y="332" fill="#e6edf3" font-size="11">• New chart indicator</text>
+  <text x="370" y="348" fill="#e6edf3" font-size="11">• New tab</text>
+  <text x="370" y="364" fill="#e6edf3" font-size="11">• New API endpoint</text>
+
+  <rect x="660" y="270" width="290" height="110" fill="rgba(38,217,110,0.10)" stroke="#26d96e" rx="8"/>
+  <text x="680" y="295" fill="#26d96e" font-size="13" font-weight="bold">PATCH  (1.0.X)</text>
+  <text x="680" y="315" fill="#97a1ab" font-size="11">Bug fixes only</text>
+  <text x="680" y="332" fill="#e6edf3" font-size="11">• Fix NaN crash</text>
+  <text x="680" y="348" fill="#e6edf3" font-size="11">• Fix chart rendering</text>
+  <text x="680" y="364" fill="#e6edf3" font-size="11">• Fix typo</text>
+
+  <defs>
+    <marker id="a" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+      <path d="M 0 0 L 9 3 L 0 6" fill="#58a6ff"/>
+    </marker>
+  </defs>
+</svg>

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Bandaru Trade Analysis — LIVE Schwab launcher.
+# Bandaru Trade Research — LIVE Schwab launcher.
 # Kills any existing server on :5000, runs OAuth setup if no token exists,
 # then starts Flask with the Schwab real-time client.
 
@@ -51,7 +51,7 @@ if [ ! -f "schwab_token.json" ]; then
 fi
 
 echo "================================================"
-echo "  Bandaru Trade Analysis — LIVE (Schwab real-time)"
+echo "  Bandaru Trade Research — LIVE (Schwab real-time)"
 echo "================================================"
 echo ""
 echo "Starting on http://localhost:5000 …"

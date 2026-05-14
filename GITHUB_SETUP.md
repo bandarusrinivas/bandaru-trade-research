@@ -9,12 +9,12 @@ One-time setup to publish this project as a public (or private) GitHub repositor
 1. Sign in at [github.com](https://github.com) as **bandarusrinivas**
 2. Click the **+** (top-right) → **New repository**
 3. Fill in:
-   - **Repository name**: `bandaru-trade-analysis`  (or any name you prefer)
+   - **Repository name**: `bandaru-trade-research`  (or any name you prefer)
    - **Description**: "SPY 0DTE options day-trading dashboard with pivots, indicators, and option-chain analysis"
    - **Visibility**: Public OR Private (your choice — Schwab credentials are gitignored either way)
    - **DO NOT** check "Add a README", "Add .gitignore", or "Add a license" — we already have those
 4. Click **Create repository**
-5. Copy the repo URL: `https://github.com/bandarusrinivas/bandaru-trade-analysis.git`
+5. Copy the repo URL: `https://github.com/bandarusrinivas/bandaru-trade-research.git`
 
 ---
 
@@ -44,10 +44,10 @@ git init
 git branch -M main
 git add .
 git status                    # ← review what's being committed; ensure no secrets!
-git commit -m "Initial commit — Bandaru Trade Analysis Platform"
+git commit -m "Initial commit — Bandaru Trade Research"
 
 # Connect to GitHub
-git remote add origin https://github.com/bandarusrinivas/bandaru-trade-analysis.git
+git remote add origin https://github.com/bandarusrinivas/bandaru-trade-research.git
 
 # Push
 git push -u origin main
@@ -55,7 +55,7 @@ git push -u origin main
 
 If prompted to authenticate:
 - **HTTPS**: GitHub requires a Personal Access Token (PAT). Go to **Settings → Developer settings → Personal access tokens → Tokens (classic) → Generate new token**. Scope: `repo`. Use the token as your password.
-- **SSH** (preferred): Set up an SSH key first via [GitHub's guide](https://docs.github.com/en/authentication/connecting-to-github-with-ssh) and change the remote to `git@github.com:bandarusrinivas/bandaru-trade-analysis.git`.
+- **SSH** (preferred): Set up an SSH key first via [GitHub's guide](https://docs.github.com/en/authentication/connecting-to-github-with-ssh) and change the remote to `git@github.com:bandarusrinivas/bandaru-trade-research.git`.
 
 ---
 
@@ -63,12 +63,12 @@ If prompted to authenticate:
 
 After the first push:
 
-1. Go to `https://github.com/bandarusrinivas/bandaru-trade-analysis/actions`
+1. Go to `https://github.com/bandarusrinivas/bandaru-trade-research/actions`
 2. You should see a workflow run titled "Build distributables"
 3. Click it — both `macos-latest` and `windows-latest` jobs run in parallel (~5–10 min each)
 4. When green, download artifacts from the workflow run page:
-   - `BandaruTradeAnalysis-macOS` (a .app bundle)
-   - `BandaruTradeAnalysis-Windows` (a folder with .exe)
+   - `BandaruTradeResearch-macOS` (a .app bundle)
+   - `BandaruTradeResearch-Windows` (a folder with .exe)
 
 These are the distributables you can hand to anyone.
 

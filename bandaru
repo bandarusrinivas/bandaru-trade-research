@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# bandaru — Bandaru Trade Analysis Platform CLI
+# bandaru — Bandaru Trade Research CLI
 #
 # Usage:
 #   bandaru start          # Launch dashboard (Schwab default; falls back to Yahoo if OAuth fails)
@@ -45,7 +45,7 @@ c_yellow='\033[33m'; c_blue='\033[34m'; c_dim='\033[2m'
 
 print_banner() {
     echo -e "${c_blue}${c_bold}================================================${c_reset}"
-    echo -e "${c_blue}${c_bold}  Bandaru Trade Analysis Platform — $1${c_reset}"
+    echo -e "${c_blue}${c_bold}  Bandaru Trade Research — $1${c_reset}"
     echo -e "${c_blue}${c_bold}================================================${c_reset}"
 }
 
@@ -289,7 +289,7 @@ APPLESCRIPT
 
 cmd_help() {
     cat <<HELP
-bandaru — Bandaru Trade Analysis Platform CLI
+bandaru — Bandaru Trade Research CLI
 
 USAGE:
   bandaru <command> [args]

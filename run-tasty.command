@@ -35,7 +35,7 @@ if lsof -ti:5000 >/dev/null 2>&1; then
 fi
 
 echo "================================================"
-echo "  Bandaru Trade Analysis — LIVE (TastyTrade)"
+echo "  Bandaru Trade Research — LIVE (TastyTrade)"
 echo "================================================"
 echo ""
 echo "Real-time SPY + 0DTE options chain via TastyTrade brokerage API."

@@ -1,0 +1,83 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 220" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">
+  <defs>
+    <linearGradient id="logo" x1="0" x2="1">
+      <stop offset="0" stop-color="#58a6ff"/>
+      <stop offset="1" stop-color="#26d96e"/>
+    </linearGradient>
+  </defs>
+  <!-- Background -->
+  <rect width="1400" height="220" fill="#0d1117"/>
+
+  <!-- Top bar -->
+  <rect x="0" y="0" width="1400" height="64" fill="#161b22" stroke="#2a313a"/>
+
+  <!-- Bandaru logo + brand -->
+  <text x="20" y="40" fill="url(#logo)" font-size="24" font-weight="bold">Bandaru</text>
+  <text x="120" y="40" fill="#97a1ab" font-size="14">Trade Research</text>
+
+  <!-- Ticker picker -->
+  <text x="380" y="42" fill="#97a1ab" font-size="11" font-weight="600">TICKER</text>
+  <rect x="430" y="22" width="80" height="32" fill="#0d1117" stroke="#2a313a" rx="4"/>
+  <text x="460" y="42" fill="#e6edf3" font-size="14" font-weight="bold">SPY</text>
+  <rect x="518" y="22" width="40" height="32" fill="#58a6ff" rx="4"/>
+  <text x="528" y="42" fill="#fff" font-size="13" font-weight="600">Go</text>
+  <g font-size="11" fill="#97a1ab">
+    <rect x="572" y="26" width="40" height="24" fill="transparent" stroke="#2a313a" rx="3"/>
+    <text x="582" y="42">SPY</text>
+    <rect x="620" y="26" width="40" height="24" fill="transparent" stroke="#2a313a" rx="3"/>
+    <text x="630" y="42">QQQ</text>
+    <rect x="668" y="26" width="40" height="24" fill="transparent" stroke="#2a313a" rx="3"/>
+    <text x="676" y="42">IWM</text>
+    <rect x="716" y="26" width="46" height="24" fill="transparent" stroke="#2a313a" rx="3"/>
+    <text x="724" y="42">NVDA</text>
+  </g>
+
+  <!-- Quote box -->
+  <rect x="980" y="14" width="50" height="40" fill="rgba(88,166,255,0.15)" stroke="#58a6ff" rx="4"/>
+  <text x="990" y="40" fill="#58a6ff" font-size="13" font-weight="bold">SPY</text>
+  <text x="1050" y="42" fill="#e6edf3" font-size="22" font-weight="bold">$745.46</text>
+  <text x="1200" y="42" fill="#26d96e" font-size="13" font-weight="600">+1.02 (0.14%)</text>
+  <rect x="1310" y="22" width="40" height="32" fill="rgba(38,217,110,0.2)" stroke="#26d96e" rx="4"/>
+  <text x="1320" y="42" fill="#26d96e" font-size="11" font-weight="bold">RTH</text>
+
+  <!-- Master Verdict banner -->
+  <rect x="0" y="64" width="1400" height="48" fill="rgba(38,217,110,0.12)" stroke="#26d96e" stroke-width="2"/>
+  <text x="20" y="94" fill="#26d96e" font-size="22" font-weight="bold">BULLISH</text>
+  <rect x="120" y="74" width="100" height="30" fill="#26d96e" rx="4"/>
+  <text x="138" y="94" fill="#0d1117" font-size="13" font-weight="bold">GO LONG</text>
+  <text x="240" y="94" fill="#e6edf3" font-size="13">EMAs bullish-stacked &#183; RSI overbought &#183; MACD histogram positive &#183; ADX 27.5 (strong bullish trend)</text>
+
+  <!-- Tabs -->
+  <rect x="0" y="112" width="1400" height="56" fill="#0d1117" stroke="#2a313a"/>
+  <g font-size="14">
+    <text x="40" y="148" fill="#58a6ff" font-weight="600">📊 Chart Analysis</text>
+    <line x1="20" y1="158" x2="180" y2="158" stroke="#58a6ff" stroke-width="2"/>
+    <text x="220" y="148" fill="#97a1ab">🚨 Entry / Exit Alerts</text>
+    <text x="430" y="148" fill="#97a1ab">🎯 Pro Signals</text>
+    <text x="580" y="148" fill="#97a1ab">👀 Watchlist</text>
+    <text x="700" y="148" fill="#97a1ab">📒 Trade Journal</text>
+    <text x="850" y="148" fill="#97a1ab">⛓ Options Chain</text>
+  </g>
+
+  <!-- CALLOUTS -->
+  <g stroke="#f1c870" stroke-width="1.5" fill="none">
+    <!-- Logo -->
+    <path d="M 100 50 Q 100 180 80 200"/>
+    <circle cx="80" cy="200" r="3" fill="#f1c870"/>
+    <!-- Ticker -->
+    <path d="M 600 60 Q 600 180 580 200"/>
+    <circle cx="580" cy="200" r="3" fill="#f1c870"/>
+    <!-- Verdict -->
+    <path d="M 110 110 Q 110 180 110 200"/>
+    <circle cx="110" cy="200" r="3" fill="#f1c870"/>
+    <!-- Tabs -->
+    <path d="M 280 168 Q 280 190 380 200"/>
+    <circle cx="380" cy="200" r="3" fill="#f1c870"/>
+  </g>
+  <g font-size="11" fill="#f1c870">
+    <text x="20" y="216">① Brand + Version</text>
+    <text x="500" y="216">② Universal Ticker Picker</text>
+    <text x="50" y="200">③ Master Verdict</text>
+    <text x="320" y="216">④ Six tabs</text>
+  </g>
+</svg>

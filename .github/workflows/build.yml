@@ -62,16 +62,16 @@ jobs:
         if: matrix.os == 'macos-latest'
         uses: actions/upload-artifact@v4
         with:
-          name: BandaruTradeAnalysis-macOS
-          path: dist/Bandaru Trade Analysis.app
+          name: BandaruTradeResearch-macOS
+          path: dist/Bandaru Trade Research.app
           retention-days: 30
 
       - name: Upload Windows folder
         if: matrix.os == 'windows-latest'
         uses: actions/upload-artifact@v4
         with:
-          name: BandaruTradeAnalysis-Windows
-          path: dist/Bandaru Trade Analysis/
+          name: BandaruTradeResearch-Windows
+          path: dist/Bandaru Trade Research/
           retention-days: 30
 
   # Optional: create a GitHub Release with both binaries when a vX.Y.Z tag is pushed
@@ -89,20 +89,20 @@ jobs:
 
       - name: Zip macOS .app
         run: |
-          cd artifacts/BandaruTradeAnalysis-macOS
-          zip -r ../../BandaruTradeAnalysis-macOS.zip .
+          cd artifacts/BandaruTradeResearch-macOS
+          zip -r ../../BandaruTradeResearch-macOS.zip .
 
       - name: Zip Windows folder
         run: |
-          cd artifacts/BandaruTradeAnalysis-Windows
-          zip -r ../../BandaruTradeAnalysis-Windows.zip .
+          cd artifacts/BandaruTradeResearch-Windows
+          zip -r ../../BandaruTradeResearch-Windows.zip .
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            BandaruTradeAnalysis-macOS.zip
-            BandaruTradeAnalysis-Windows.zip
+            BandaruTradeResearch-macOS.zip
+            BandaruTradeResearch-Windows.zip
           draft: false
           prerelease: false
           generate_release_notes: true

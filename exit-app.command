@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Bandaru Trade Analysis — FULL EXIT
+# Bandaru Trade Research — FULL EXIT
 # 1. Kills the Flask server.
 # 2. Closes all Safari tabs pointing at the local dashboard (127.0.0.1:5000).
 # 3. Closes all Terminal windows running app.py / schwab_setup.py / start-app.command / run-schwab.command.
@@ -9,7 +9,7 @@ set +e   # Don't bail on individual cleanup failures
 cd "$(dirname "$0")"
 
 echo "================================================"
-echo "  Bandaru Trade Analysis — FULL EXIT"
+echo "  Bandaru Trade Research — FULL EXIT"
 echo "================================================"
 echo ""
 

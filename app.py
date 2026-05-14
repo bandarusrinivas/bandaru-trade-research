@@ -21,10 +21,27 @@ from indicators import compute_daily_indicators
 from pro_indicators import compute_pro_signals
 from greeks import fill_greeks
 from watchlist import fetch_watchlist
+from _version import __version__ as APP_VERSION
 
 load_dotenv()
 
 app = Flask(__name__)
+
+
+@app.route("/api/version")
+def version():
+    """Return the running app version + build metadata."""
+    return jsonify({
+        "version": APP_VERSION,
+        "data_source": DATA_SOURCE,
+        "product": "Bandaru Trade Research",
+    })
+
+
+@app.context_processor
+def inject_version():
+    """Make {{ app_version }} available in every template."""
+    return {"app_version": APP_VERSION}
 
 _client = None
 DEMO_MODE = os.environ.get("DEMO_MODE", "").lower() in ("1", "true", "yes")

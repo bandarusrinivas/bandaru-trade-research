@@ -1,4 +1,4 @@
-"""Standalone launcher for the Bandaru Trade Analysis Platform.
+"""Standalone launcher for the Bandaru Trade Research.
 
 This file is the PyInstaller entry point — it boots the Flask server, picks
 a free port, opens the user's default browser, and keeps the app running
@@ -38,7 +38,7 @@ def _user_data_dir() -> Path:
         base = Path(os.environ.get("APPDATA", Path.home() / "AppData" / "Roaming"))
     else:
         base = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local" / "share"))
-    d = base / "BandaruTradeAnalysis"
+    d = base / "BandaruTradeResearch"
     d.mkdir(parents=True, exist_ok=True)
     return d
 
@@ -120,7 +120,7 @@ def _open_browser_when_ready(url: str, port: int) -> None:
 
 def main() -> int:
     print("================================================")
-    print("  Bandaru Trade Analysis Platform")
+    print("  Bandaru Trade Research")
     print("================================================")
     print(f"Bundle dir: {BUNDLE_DIR}")
     print(f"User dir:   {USER_DIR}")

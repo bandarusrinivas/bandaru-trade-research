@@ -1,4 +1,4 @@
-# Building Bandaru Trade Analysis as a Standalone App
+# Building Bandaru Trade Research as a Standalone App
 
 This guide explains how to package the dashboard as a runnable application that distributes to **Mac (.app)** or **Windows (.exe)** — recipients double-click it and the app launches without needing Python installed.
 
@@ -17,7 +17,7 @@ The build uses **PyInstaller**, which bundles Python + every dependency + the Fl
 
 Or double-click **`build-mac.command`** in Finder.
 
-Output: `dist/Bandaru Trade Analysis.app` — a native Mac app bundle.
+Output: `dist/Bandaru Trade Research.app` — a native Mac app bundle.
 
 ### On Windows
 
@@ -28,7 +28,7 @@ build-windows.bat
 
 Or double-click **`build-windows.bat`** in File Explorer.
 
-Output: `dist\Bandaru Trade Analysis\Bandaru Trade Analysis.exe` — runs on any Windows 10/11 PC.
+Output: `dist\Bandaru Trade Research\Bandaru Trade Research.exe` — runs on any Windows 10/11 PC.
 
 ---
 
@@ -68,9 +68,9 @@ Once launched, the app writes user-specific data **outside** the bundle (so the 
 
 | Platform | User data path |
 |---|---|
-| macOS | `~/Library/Application Support/BandaruTradeAnalysis/` |
-| Windows | `%APPDATA%\BandaruTradeAnalysis\` |
-| Linux | `~/.local/share/BandaruTradeAnalysis/` |
+| macOS | `~/Library/Application Support/BandaruTradeResearch/` |
+| Windows | `%APPDATA%\BandaruTradeResearch\` |
+| Linux | `~/.local/share/BandaruTradeResearch/` |
 
 Files saved there:
 - `.env` — Schwab credentials + DATA_SOURCE choice
@@ -84,11 +84,11 @@ On **first launch**, the app copies `.env.example` from the bundle into the user
 
 ### macOS distribution
 
-1. Right-click `dist/Bandaru Trade Analysis.app` → **Compress** to get a `.zip`
+1. Right-click `dist/Bandaru Trade Research.app` → **Compress** to get a `.zip`
 2. Share the `.zip` via email, Dropbox, etc.
 3. Recipients:
    - Unzip
-   - Drag `Bandaru Trade Analysis.app` to Applications (or anywhere)
+   - Drag `Bandaru Trade Research.app` to Applications (or anywhere)
    - **First launch**: right-click → **Open** (because the app isn't notarized by Apple)
    - Click **Open** at the security warning
    - Subsequent launches: just double-click normally
@@ -97,19 +97,19 @@ On **first launch**, the app copies `.env.example` from the bundle into the user
 
 To distribute professionally, you need an **Apple Developer ID** ($99/year) and to:
 
-1. Code-sign: `codesign --deep --force --options runtime --sign "Developer ID Application: Your Name" "dist/Bandaru Trade Analysis.app"`
+1. Code-sign: `codesign --deep --force --options runtime --sign "Developer ID Application: Your Name" "dist/Bandaru Trade Research.app"`
 2. Notarize: `xcrun notarytool submit ... --wait`
-3. Staple: `xcrun stapler staple "dist/Bandaru Trade Analysis.app"`
+3. Staple: `xcrun stapler staple "dist/Bandaru Trade Research.app"`
 
 Once notarized, recipients can double-click without the warning.
 
 ### Windows distribution
 
-1. Right-click the `dist\Bandaru Trade Analysis` folder → **Send to → Compressed (zipped) folder**
+1. Right-click the `dist\Bandaru Trade Research` folder → **Send to → Compressed (zipped) folder**
 2. Share the `.zip`
 3. Recipients:
    - Unzip to any location (Desktop, Documents, Program Files)
-   - Double-click `Bandaru Trade Analysis.exe`
+   - Double-click `Bandaru Trade Research.exe`
    - **First launch**: Windows SmartScreen will warn "Windows protected your PC" — click **More info → Run anyway**
 
 #### Avoiding the SmartScreen warning
@@ -117,7 +117,7 @@ Once notarized, recipients can double-click without the warning.
 You need a **code-signing certificate** ($100–400/year from DigiCert, Sectigo, etc.) and:
 
 ```cmd
-signtool sign /a /t http://timestamp.digicert.com "dist\Bandaru Trade Analysis\Bandaru Trade Analysis.exe"
+signtool sign /a /t http://timestamp.digicert.com "dist\Bandaru Trade Research\Bandaru Trade Research.exe"
 ```
 
 After signing + a few hundred users running it, SmartScreen reputation builds and the warning disappears.
@@ -154,10 +154,10 @@ The Flask server crashed during boot. Run from Terminal to see the error:
 
 ```bash
 # macOS
-"dist/Bandaru Trade Analysis.app/Contents/MacOS/Bandaru Trade Analysis"
+"dist/Bandaru Trade Research.app/Contents/MacOS/Bandaru Trade Research"
 
 # Windows
-"dist\Bandaru Trade Analysis\Bandaru Trade Analysis.exe"
+"dist\Bandaru Trade Research\Bandaru Trade Research.exe"
 ```
 
 ### Schwab OAuth fails in the bundled app

@@ -15,7 +15,7 @@ fi
 source .venv/bin/activate
 
 echo "================================================"
-echo "  Bandaru Trade Analysis — DEMO MODE (synthetic data)"
+echo "  Bandaru Trade Research — DEMO MODE (synthetic data)"
 echo "================================================"
 echo ""
 echo "Running with SYNTHETIC data (no Schwab account needed)."

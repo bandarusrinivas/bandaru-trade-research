@@ -28,7 +28,7 @@ if lsof -ti:5000 >/dev/null 2>&1; then
 fi
 
 echo "================================================"
-echo "  Bandaru Trade Analysis — LIVE (Yahoo Finance)"
+echo "  Bandaru Trade Research — LIVE (Yahoo Finance)"
 echo "================================================"
 echo ""
 echo "Using Yahoo Finance — quotes are ~15-min delayed during market hours."

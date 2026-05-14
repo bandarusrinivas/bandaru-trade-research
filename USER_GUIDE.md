@@ -1,4 +1,4 @@
-# Bandaru Trade Analysis — Start & Stop User Guide
+# Bandaru Trade Research — Start & Stop User Guide
 
 A reference for the three launcher scripts that control the dashboard. Each one is a double-clickable file in the project folder.
 
@@ -35,7 +35,7 @@ If you want desktop access, drag any of them to your Desktop with **Option** hel
 **Terminal output you'll see when it works:**
 
 ```
-Bandaru Trade Analysis — LIVE (schwab)
+Bandaru Trade Research — LIVE (schwab)
 Starting on http://localhost:5000 …
 Opening Safari in 2 seconds. (Press Ctrl+C to stop the server.)
  * Running on http://127.0.0.1:5000
@@ -120,7 +120,7 @@ Only matters if `DATA_SOURCE=schwab` and there's no `schwab_token.json` file yet
 2. Terminal prints a long Schwab authorization URL — copy it
 3. Open Safari (Cmd+Tab), paste the URL in the address bar (Cmd+L → Cmd+V), Enter
 4. Log in to **Schwab.com** with your brokerage account (not the developer-portal account)
-5. Click **Allow** when Schwab asks "Authorize Bandaru Trade Analysis to access your account?"
+5. Click **Allow** when Schwab asks "Authorize Bandaru Trade Research to access your account?"
 6. Schwab redirects to `https://127.0.0.1/?code=...&session=...` — Safari shows "Can't connect to server", that's expected
 7. **Click Safari's address bar** (Cmd+L) to expand the truncated URL. Cmd+A then Cmd+C to copy the full URL.
 8. Cmd+Tab back to Terminal — it's waiting at `Redirect URL>`

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Bandaru Trade Analysis — START
+# Bandaru Trade Research — START
 # Launches the dashboard. Uses Schwab if token exists, otherwise runs OAuth
 # then starts. Reads DATA_SOURCE from .env (schwab / yahoo / demo).
 
@@ -49,7 +49,7 @@ if [ "$SRC" = "schwab" ] && [ ! -f "schwab_token.json" ]; then
 fi
 
 echo "================================================"
-echo "  Bandaru Trade Analysis — LIVE ($SRC)"
+echo "  Bandaru Trade Research — LIVE ($SRC)"
 echo "================================================"
 echo "Starting on http://localhost:5000 …"
 echo "Opening Safari in 2 seconds. (Press Ctrl+C to stop the server.)"
