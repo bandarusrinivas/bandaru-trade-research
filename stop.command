@@ -6,11 +6,11 @@ cd "$(dirname "$0")"
 
 echo "Stopping Bandaru Trade Research..."
 
-# 1) Docker mode
+# 1) Docker mode (include schwab profile so the sidecar comes down too)
 if command -v docker >/dev/null 2>&1 && [ -f mern/docker-compose.yml ]; then
-  if docker compose -f mern/docker-compose.yml ps --services 2>/dev/null | grep -q .; then
+  if docker compose -f mern/docker-compose.yml --profile schwab ps --services 2>/dev/null | grep -q .; then
     echo "  - Bringing down docker compose stack..."
-    ( cd mern && docker compose down )
+    ( cd mern && docker compose --profile schwab down )
   fi
 fi
 

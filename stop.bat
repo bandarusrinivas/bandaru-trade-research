@@ -10,11 +10,11 @@ REM --- 1) Docker mode ------------------------------------------------------
 where docker >nul 2>&1
 if not errorlevel 1 (
   if exist mern\docker-compose.yml (
-    docker compose -f mern\docker-compose.yml ps --services >nul 2>&1
+    docker compose -f mern\docker-compose.yml --profile schwab ps --services >nul 2>&1
     if not errorlevel 1 (
       echo   - Bringing down docker compose stack...
       pushd mern
-      docker compose down
+      docker compose --profile schwab down
       popd
     )
   )

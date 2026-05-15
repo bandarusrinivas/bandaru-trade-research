@@ -42,6 +42,8 @@ schwab_token.json.bak*
 *.swp
 *.swo
 *~
+*.bak
+*.orig
 
 # ----- macOS / Windows / Linux junk -----
 .DS_Store

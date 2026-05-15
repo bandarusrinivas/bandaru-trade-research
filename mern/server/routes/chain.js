@@ -1,12 +1,12 @@
 import { Router } from "express";
-import * as yahoo from "../services/yahoo.js";
+import * as data from "../services/data.js";
 
 const router = Router();
 
 router.get("/", async (req, res) => {
   const ticker = (req.query.ticker || "SPY").toString().toUpperCase();
   try {
-    const data = await yahoo.getOptionChain(ticker);
+    const data = await data.getOptionChain(ticker);
     res.json({
       ticker,
       current_price: data.underlying_price,

@@ -2,6 +2,7 @@ import { Router } from "express";
 import fs from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
+import { status as dataStatus, schwab } from "../services/data.js";
 
 const router = Router();
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -25,11 +26,18 @@ async function readVersion() {
 }
 
 router.get("/", async (_req, res) => {
+  const ds = dataStatus();
+  // Probe Schwab sidecar so the UI can show if it's reachable
+  let sidecar = null;
+  if (ds.configured_source === "schwab") {
+    sidecar = await schwab.ping();
+  }
   res.json({
     version: await readVersion(),
     product: "Bandaru Trade Research",
-    data_source: process.env.DATA_SOURCE || "yahoo",
     stack: "MERN",
+    ...ds,
+    sidecar,
   });
 });
 

@@ -1,25 +1,22 @@
 #!/usr/bin/env bash
 # Bandaru Trade Research — local launcher (Mac, no Docker)
-# Runs Express + Vite directly with your installed Node.
-# Requires Node.js 18+ from https://nodejs.org (or `brew install node`).
+# Runs Express + Vite directly with installed Node 18+.
 
 set -e
-cd "$(dirname "$0")"
-PROJECT_ROOT="$(pwd)"
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+cd "$ROOT"
 URL="http://localhost:5173"
 
 printf '\n\033[1;36m========================================\033[0m\n'
 printf '\033[1;36m  Bandaru Trade Research — v%s\033[0m\n' "$(cat VERSION 2>/dev/null || echo dev)"
-printf '\033[1;36m  Mode: Local Node (dev)\033[0m\n'
+printf '\033[1;36m  Mode: Local Node (dev, Yahoo data)\033[0m\n'
 printf '\033[1;36m========================================\033[0m\n\n'
 
 if ! command -v node >/dev/null 2>&1; then
   echo "✗ Node.js is not installed."
   echo "  Install Node 20+ from https://nodejs.org or run 'brew install node'."
-  echo "  Or use start-docker.command if you'd rather run with Docker."
   exit 1
 fi
-
 NODE_MAJOR=$(node -v | sed 's/v\([0-9]*\).*/\1/')
 if [ "$NODE_MAJOR" -lt 18 ]; then
   echo "✗ Node $NODE_MAJOR detected. Need Node 18 or newer."
@@ -32,7 +29,6 @@ echo "  - Installing server deps (if needed)..."
 echo "  - Installing client deps (if needed)..."
 ( cd mern/client && [ -d node_modules ] || npm install --no-audit --no-fund )
 
-# Detect optional local MongoDB on :27017 so the Trade Journal works
 MONGO_URI_VAL="mongodb://127.0.0.1:1/x?serverSelectionTimeoutMS=300"
 if nc -z 127.0.0.1 27017 2>/dev/null; then
   echo "  - Local MongoDB detected on :27017 — Trade Journal enabled"
@@ -64,4 +60,4 @@ done
 echo "✓ Opening $URL"
 open "$URL" 2>/dev/null || true
 echo
-echo "Stop:    double-click stop.command   (or 'kill $SERVER_PID $CLIENT_PID')"
+echo "Stop:    double-click stop.command"

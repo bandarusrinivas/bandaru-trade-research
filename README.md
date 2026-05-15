@@ -10,22 +10,35 @@ The platform is built on the **MERN stack** (MongoDB + Express + React + Node.js
 
 ## Run it
 
-### Easiest — double-click launchers
+### Easiest — double-click `start`
 
-Pick the mode that matches your setup. Both are first-class — keep whichever you prefer.
+The project root has one launcher per platform that opens an interactive menu and runs the mode you pick.
 
-| Mode | What it does | Mac | Windows |
-|---|---|---|---|
-| **Docker** | Full production stack: Mongo + Express + nginx. Trade Journal persists. Opens **http://localhost:3000**. Requires Docker Desktop. | `start-docker.command` | `start-docker.bat` / `start-docker.ps1` |
-| **Local (no Docker)** | Runs Express + Vite directly with your installed Node. Opens **http://localhost:5173**. Auto-detects MongoDB on :27017 (Trade Journal optional). Requires Node 18+. | `start-local.command` | `start-local.bat` / `start-local.ps1` |
-| **Auto** | Smart picker — uses Docker if available, otherwise local Node. | `start.command` | `start.bat` / `start.ps1` |
+| Platform | Start | Stop |
+|---|---|---|
+| **macOS** | `start.command` | `stop.command` |
+| **Windows** | `start.bat` (or `start.ps1`) | `stop.bat` (or `stop.ps1`) |
 
-**To stop:** double-click `stop.command` (Mac) or `stop.bat` / `stop.ps1` (Windows) — handles both modes, cleans up everything.
+When you run `start`, you'll see:
+
+```
+  1)  Docker            — Mongo + Express + nginx     (Yahoo data)
+  2)  Docker + Schwab   — adds real-time data sidecar (requires token)
+  3)  Local Node        — Express + Vite, no Docker   (Yahoo data)
+  4)  Python (Schwab)   — legacy Flask app            (real-time, no Docker)
+```
+
+Each option delegates to the matching script in `scripts/mac/` or `scripts/windows/` — you can also run those directly if you prefer skipping the menu.
+
+**Common one-off scripts at the root:**
+- `auth-schwab.command` / `.bat` — interactive Schwab OAuth (before option 2 or 4)
+- `push-to-github.command` / `.bat` — staged commit + push
+- `cleanup.command` / `.bat` — run once after pulling the new layout to delete the old deprecation stubs
 
 **First-run warnings:**
 - macOS Gatekeeper may block unsigned scripts. Right-click → Open the first time.
-- Windows SmartScreen may warn about `.ps1`. Click "More info" → "Run anyway", or use `.bat` instead.
-- If PowerShell blocks execution: `powershell -ExecutionPolicy Bypass -File start-docker.ps1`.
+- Windows SmartScreen may warn about `.ps1`. Click "More info" → "Run anyway", or use the `.bat`.
+- If PowerShell blocks execution: `powershell -ExecutionPolicy Bypass -File start.ps1`.
 
 > Full step-by-step launch and stop instructions for both Mac and Windows live in [docs/USER_GUIDE.md](docs/USER_GUIDE.md).
 
@@ -63,6 +76,34 @@ No Python, no Node, no MongoDB installed on the host — Docker handles every pr
 - Master Verdict (BULLISH / BEARISH) with action button (GO LONG / GO SHORT)
 - Live SPY price + change %
 - Auto-refresh every 10 seconds
+
+---
+
+## Project layout
+
+```
+bandaru-trade-research/
+├── README.md, LICENSE, VERSION, .env.example       ← top-level docs + config
+├── start.command  / start.bat  / start.ps1         ← interactive menu (entry point)
+├── stop.command   / stop.bat   / stop.ps1          ← universal stop (all modes)
+├── auth-schwab.command / auth-schwab.bat           ← interactive Schwab OAuth
+├── push-to-github.command / push-to-github.bat     ← dev workflow
+├── cleanup.command / cleanup.bat                   ← run once after migrating layout
+│
+├── docs/                                           ← USER_GUIDE, BUILD, DEPLOY, etc.
+├── mern/                                           ← MERN application (primary)
+│   ├── docker-compose.yml
+│   ├── server/                                     ← Express API
+│   └── client/                                     ← React + Vite
+├── legacy-python/                                  ← Flask app + Schwab sidecar
+│   ├── app.py, data_api.py, Dockerfile
+│   └── src/clients/                                ← Schwab, Yahoo, TastyTrade, demo
+└── scripts/                                        ← mode-specific launchers
+    ├── mac/        start-docker, start-local, start-schwab, start-docker-schwab (.command)
+    └── windows/    same .bat + .ps1
+```
+
+15 visible items at the root — only the universal "verbs" (start / stop / auth / push / cleanup) plus the three folders. Mode-specific launchers live one level deeper under `scripts/`.
 
 ---
 

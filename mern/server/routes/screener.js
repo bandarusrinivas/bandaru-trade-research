@@ -1,5 +1,5 @@
 import { Router } from "express";
-import * as yahoo from "../services/yahoo.js";
+import * as data from "../services/data.js";
 import { adx, rsi, macd, ema, calculatePivots, ttmSqueeze } from "../services/indicators.js";
 
 const router = Router();
@@ -20,7 +20,7 @@ const OPP_SCORES = {
 
 async function screenOne(sym) {
   try {
-    const daily = await yahoo.getDailyBars(sym, "6mo");
+    const daily = await data.getDailyBars(sym, "6mo");
     if (daily.closes.length < 30) return { ticker: sym, error: "insufficient history", score: -1 };
     const cp = daily.closes[daily.closes.length - 1];
     const pp = daily.closes[daily.closes.length - 2];

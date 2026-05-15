@@ -31,6 +31,35 @@ services:
       timeout: 5s
       retries: 5
 
+  # ---------- Schwab data sidecar (Python Flask) ----------
+  # Only starts under `--profile schwab` so default `docker compose up` skips it.
+  # OAuth is done once on the host (auth-schwab.command); the token file is
+  # mounted into this container so schwab-py can read + refresh it in place.
+  #
+  #   With Schwab:   docker compose --profile schwab up -d --build
+  #   Yahoo only:    docker compose up -d --build
+  schwab:
+    build: ../legacy-python
+    container_name: bandaru-schwab
+    restart: unless-stopped
+    profiles: ["schwab"]
+    environment:
+      SCHWAB_API_KEY: ${SCHWAB_API_KEY:-}
+      SCHWAB_APP_SECRET: ${SCHWAB_APP_SECRET:-}
+      SCHWAB_CALLBACK_URL: ${SCHWAB_CALLBACK_URL:-https://127.0.0.1}
+      SCHWAB_TOKEN_PATH: /tokens/schwab_token.json
+      PORT: 5050
+    volumes:
+      # Read/write so schwab-py can refresh the token in place
+      - ../legacy-python:/tokens
+    networks:
+      - bandaru-net
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:5050/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
   # ---------- Express backend ----------
   server:
     build: ./server
@@ -43,11 +72,15 @@ services:
       NODE_ENV: production
       PORT: 4000
       MONGO_URI: mongodb://mongo:27017/bandaru
-      # Data source: yahoo (default, no auth) | schwab (needs SCHWAB_API_KEY+SECRET)
+      # Data source — yahoo (default, free) | schwab (real-time, uses sidecar)
       DATA_SOURCE: ${DATA_SOURCE:-yahoo}
-      SCHWAB_API_KEY: ${SCHWAB_API_KEY:-}
-      SCHWAB_APP_SECRET: ${SCHWAB_APP_SECRET:-}
-      SCHWAB_CALLBACK_URL: ${SCHWAB_CALLBACK_URL:-https://127.0.0.1}
+      # When DATA_SOURCE=schwab, the server proxies to this sidecar URL
+      SCHWAB_SIDECAR_URL: http://schwab:5050
+      # If Schwab call fails (token bad, sidecar down), auto-fallback to Yahoo
+      SCHWAB_FALLBACK_TO_YAHOO: ${SCHWAB_FALLBACK_TO_YAHOO:-true}
+      # Optional cache tuning (defaults in services/yahoo.js, services/schwab.js)
+      YAHOO_CACHE_QUOTE_MS: ${YAHOO_CACHE_QUOTE_MS:-5000}
+      YAHOO_CACHE_INTRADAY_MS: ${YAHOO_CACHE_INTRADAY_MS:-15000}
     ports:
       - "4000:4000"
     networks:

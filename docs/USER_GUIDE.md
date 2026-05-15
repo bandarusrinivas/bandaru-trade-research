@@ -25,17 +25,21 @@ A step-by-step manual for launching, using, and stopping the app on macOS and Wi
 
 ## 1. Pick a launch mode
 
-The app supports three launch modes. Pick one — all three live side by side in the project root.
+Double-click `start.command` (Mac) or `start.bat` (Windows) at the project root. You'll see a menu — pick one of four modes:
 
-| Mode | What runs | URL | Best for |
+| Choice | What runs | URL | Best for |
 |---|---|---|---|
-| **Docker** | Mongo + Express + nginx in containers | http://localhost:3000 | Production-grade setup, persistent Trade Journal, zero local install other than Docker |
-| **Local** | Express + Vite using your installed Node | http://localhost:5173 | No Docker, fast startup, hot-reload for development |
-| **Auto** | Picks Docker if installed, else Local | varies | Just want it to work — let the launcher decide |
+| 1 — **Docker** | Mongo + Express + nginx in containers (Yahoo data) | http://localhost:3000 | Daily use, persistent Trade Journal |
+| 2 — **Docker + Schwab** | adds the Python data sidecar for real-time data | http://localhost:3000 | Trading hours, real-time signals |
+| 3 — **Local Node** | Express + Vite with your installed Node (Yahoo data) | http://localhost:5173 | No Docker, hot-reload, fast iteration |
+| 4 — **Python (Schwab)** | legacy Flask app, no Docker (real-time) | http://127.0.0.1:5000 | Real-time data without containers |
 
-Trade Journal availability:
-- **Docker** → always on (MongoDB ships in the stack).
-- **Local** → on if you have MongoDB running on `localhost:27017`, off otherwise. Everything else still works.
+The menu launcher delegates to the matching script in `scripts/mac/` or `scripts/windows/`. You can also call those directly (e.g. `scripts/mac/start-docker.command`) if you want one-click access to a specific mode.
+
+**Trade Journal availability:**
+- Choices 1 & 2 (Docker) → always on (MongoDB ships in the stack).
+- Choice 3 (Local Node) → on if you have MongoDB running on `localhost:27017`, off otherwise. Everything else still works.
+- Choice 4 (Python) → stored in browser localStorage (not persistent across browsers/devices).
 
 ---
 

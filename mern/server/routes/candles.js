@@ -1,5 +1,5 @@
 import { Router } from "express";
-import * as yahoo from "../services/yahoo.js";
+import * as data from "../services/data.js";
 import { calculatePivots } from "../services/indicators.js";
 
 const router = Router();
@@ -9,9 +9,9 @@ router.get("/", async (req, res) => {
   const interval = (req.query.interval || "5m").toString();
   const period = (req.query.period || "1d").toString();
   try {
-    const bars = await yahoo.getIntradayBars(ticker, interval, period === "3d" || period === "2d" ? "5d" : period);
+    const bars = await data.getIntradayBars(ticker, interval, period === "3d" || period === "2d" ? "5d" : period);
     // Pivots from prev daily bar
-    const daily = await yahoo.getPreviousDay(ticker);
+    const daily = await data.getPreviousDay(ticker);
     const pivots = calculatePivots(daily.high, daily.low, daily.close);
     res.json({ ticker, interval, period, bars, pivots });
   } catch (e) {

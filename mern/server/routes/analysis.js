@@ -1,5 +1,5 @@
 import { Router } from "express";
-import * as yahoo from "../services/yahoo.js";
+import * as data from "../services/data.js";
 import { calculatePivots, adx, rsi, macd, ema } from "../services/indicators.js";
 import { buildRecommendations, getTodayExpiration } from "../services/analysis.js";
 
@@ -9,9 +9,9 @@ router.get("/", async (req, res) => {
   const ticker = (req.query.ticker || "SPY").toString().toUpperCase();
   try {
     const [quote, prev, daily] = await Promise.all([
-      yahoo.getQuote(ticker),
-      yahoo.getPreviousDay(ticker),
-      yahoo.getDailyBars(ticker, "6mo"),
+      data.getQuote(ticker),
+      data.getPreviousDay(ticker),
+      data.getDailyBars(ticker, "6mo"),
     ]);
     if (!quote.price) return res.status(500).json({ error: `No current price for ${ticker}` });
 
@@ -19,7 +19,7 @@ router.get("/", async (req, res) => {
     let chain = { underlying_price: quote.price, contracts: [] };
     let chain_error = null;
     try {
-      chain = await yahoo.getOptionChain(ticker);
+      chain = await data.getOptionChain(ticker);
     } catch (e) {
       chain_error = e.message;
     }
