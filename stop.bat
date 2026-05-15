@@ -20,8 +20,8 @@ if not errorlevel 1 (
   )
 )
 
-REM --- 2) Dev mode: kill node processes on :4000 and :5173 -----------------
-for %%P in (4000 5173) do (
+REM --- 2) Dev mode + Schwab Flask: kill processes on :4000 / :5173 / :5000 -
+for %%P in (4000 5173 5000) do (
   for /f "tokens=5" %%a in ('netstat -ano ^| findstr /R /C:":%%P .*LISTENING"') do (
     if not "%%a"=="0" (
       echo   - Killing PID %%a on port %%P

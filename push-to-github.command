@@ -44,7 +44,7 @@ else
 fi
 
 # 4. Prompt for a commit message (with default)
-DEFAULT_MSG="v$(cat VERSION 2>/dev/null || echo 2.0.0): MERN rewrite + launchers + docs"
+DEFAULT_MSG="Schwab launchers + Yahoo cache + tighter .gitignore"
 echo
 read -p "Commit message [default: \"$DEFAULT_MSG\"]: " MSG
 MSG="${MSG:-$DEFAULT_MSG}"

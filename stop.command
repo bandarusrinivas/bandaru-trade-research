@@ -25,8 +25,9 @@ if [ -f /tmp/bandaru.pids ]; then
   rm -f /tmp/bandaru.pids
 fi
 
-# 3) Belt-and-suspenders: kill any stray node on :4000 / :5173
-for PORT in 4000 5173; do
+# 3) Belt-and-suspenders: kill any stray process on :4000 / :5173 / :5000
+#    4000 = MERN Express, 5173 = Vite dev, 5000 = legacy Python Flask
+for PORT in 4000 5173 5000; do
   PID=$(lsof -ti :$PORT 2>/dev/null || true)
   if [ -n "$PID" ]; then
     echo "  - Killing leftover process on port $PORT (PID $PID)"

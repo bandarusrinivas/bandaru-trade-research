@@ -54,7 +54,7 @@ if "%CHANGE_COUNT%"=="0" (
 )
 
 REM 4. Prompt for commit message
-set "DEFAULT_MSG=v%APP_VERSION%: MERN rewrite + launchers + docs"
+set "DEFAULT_MSG=Schwab launchers + Yahoo cache + tighter .gitignore"
 echo.
 set /p MSG=Commit message [default: "%DEFAULT_MSG%"]:
 if "%MSG%"=="" set "MSG=%DEFAULT_MSG%"

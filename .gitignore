@@ -23,7 +23,18 @@ ENV/
 .env.local
 .env.*.local
 schwab_token.json
+schwab_token.json.bak*
 *.token
+*.tokens
+*credentials*
+*-credentials.json
+*.pem
+*.key
+*.p12
+*.pfx
+*.keystore
+.aws/
+.gcp/
 
 # ----- IDE / editor -----
 .vscode/

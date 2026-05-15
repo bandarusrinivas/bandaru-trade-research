@@ -32,8 +32,9 @@ if (Test-Path $pidFile) {
   Remove-Item $pidFile -ErrorAction SilentlyContinue
 }
 
-# 3) Belt-and-suspenders: anything still listening on :4000 / :5173
-foreach ($port in 4000, 5173) {
+# 3) Belt-and-suspenders: anything still listening on :4000 / :5173 / :5000
+#    (4000 = MERN Express, 5173 = Vite, 5000 = legacy Python Flask)
+foreach ($port in 4000, 5173, 5000) {
   $conns = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue
   foreach ($c in $conns) {
     if ($c.OwningProcess -gt 0) {
