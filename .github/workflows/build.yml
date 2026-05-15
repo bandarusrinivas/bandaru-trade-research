@@ -1,108 +1,145 @@
-# Build cross-platform distributables (.app for macOS, .exe for Windows)
-# on every push to main, every PR, and manual workflow dispatch.
-#
-# Artifacts download under Actions → workflow run → Artifacts (zipped).
+# Build + publish MERN Docker images on every push.
+# Tagged releases (v*) also push to GitHub Container Registry and create a Release.
 
-name: Build distributables
+name: Build Docker images
 
 on:
   push:
     branches: [main]
-    tags: ['v*']        # also build on version tags like v1.0.0
+    tags: ['v*']
   pull_request:
     branches: [main]
-  workflow_dispatch:    # allow manual trigger from the Actions tab
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_OWNER: ${{ github.repository_owner }}
 
 jobs:
+
+  # ============ Build the two MERN images ============
   build:
-    name: Build on ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
+    name: Build ${{ matrix.image }} image
+    runs-on: ubuntu-latest
     strategy:
-      fail-fast: false
       matrix:
-        os: [macos-latest, windows-latest]
-        python-version: ['3.12']
-
+        include:
+          - image: server
+            context: mern/server
+          - image: client
+            context: mern/client
+    permissions:
+      contents: read
+      packages: write   # for pushing to ghcr.io on tag
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry (tags only)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: docker/login-action@v3
         with:
-          python-version: ${{ matrix.python-version }}
-          cache: 'pip'
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Install dependencies
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/bandaru-trade-research-${{ matrix.image }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build (and push on tag) ${{ matrix.image }}
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ matrix.context }}
+          push: ${{ startsWith(github.ref, 'refs/tags/v') }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ============ Smoke-test docker-compose ============
+  compose-up:
+    name: Test docker compose up
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate docker-compose.yml
         run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install pyinstaller
+          cd mern
+          docker compose config --quiet
 
-      - name: Run test suite
+      - name: Build + start the full stack
         run: |
-          python -m pip install pytest
-          # Skip tests for now if no pytest config is present
-          if [ -f pytest.ini ] || [ -f pyproject.toml ]; then
-            pytest tests/ || echo "Tests not configured, continuing"
-          else
-            echo "No pytest config — skipping"
-          fi
-        shell: bash
-        continue-on-error: true
+          cd mern
+          docker compose up -d --build
+          # Wait for healthchecks
+          for i in {1..30}; do
+            if docker compose ps | grep -q "healthy"; then
+              echo "✓ Services healthy"
+              break
+            fi
+            sleep 2
+          done
+          docker compose ps
 
-      - name: Build with PyInstaller
-        run: pyinstaller bandaru.spec --noconfirm
+      - name: Smoke test the API
+        run: |
+          sleep 5
+          curl -fsS http://localhost:4000/api/version || (docker compose -f mern/docker-compose.yml logs && exit 1)
 
-      - name: List build output (for debugging)
-        run: ls -lh dist/
-        shell: bash
+      - name: Tear down
+        if: always()
+        run: cd mern && docker compose down -v
 
-      - name: Upload macOS .app
-        if: matrix.os == 'macos-latest'
-        uses: actions/upload-artifact@v4
-        with:
-          name: BandaruTradeResearch-macOS
-          path: dist/Bandaru Trade Research.app
-          retention-days: 30
-
-      - name: Upload Windows folder
-        if: matrix.os == 'windows-latest'
-        uses: actions/upload-artifact@v4
-        with:
-          name: BandaruTradeResearch-Windows
-          path: dist/Bandaru Trade Research/
-          retention-days: 30
-
-  # Optional: create a GitHub Release with both binaries when a vX.Y.Z tag is pushed
+  # ============ Create a GitHub Release on v* tags ============
   release:
     name: Publish release
-    needs: build
+    needs: [build, compose-up]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v4
-        with:
-          path: artifacts
+      - uses: actions/checkout@v4
 
-      - name: Zip macOS .app
-        run: |
-          cd artifacts/BandaruTradeResearch-macOS
-          zip -r ../../BandaruTradeResearch-macOS.zip .
-
-      - name: Zip Windows folder
-        run: |
-          cd artifacts/BandaruTradeResearch-Windows
-          zip -r ../../BandaruTradeResearch-Windows.zip .
+      - name: Extract version
+        id: ver
+        run: echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: |
-            BandaruTradeResearch-macOS.zip
-            BandaruTradeResearch-Windows.zip
+          name: v${{ steps.ver.outputs.version }}
+          body: |
+            ## Bandaru Trade Research v${{ steps.ver.outputs.version }}
+
+            **Docker images** (open source, MIT-licensed):
+
+            - Server: `ghcr.io/${{ github.repository_owner }}/bandaru-trade-research-server:${{ steps.ver.outputs.version }}`
+            - Client: `ghcr.io/${{ github.repository_owner }}/bandaru-trade-research-client:${{ steps.ver.outputs.version }}`
+
+            ### Quick start
+            ```bash
+            git clone https://github.com/${{ github.repository }}.git
+            cd bandaru-trade-research/mern
+            docker compose up
+            ```
+
+            Open http://localhost:3000.
+
+            See [CHANGELOG.md](docs/CHANGELOG.md) for the full list of changes.
           draft: false
           prerelease: false
           generate_release_notes: true

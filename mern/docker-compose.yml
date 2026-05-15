@@ -1,0 +1,81 @@
+# Bandaru Trade Research — MERN + Docker
+#
+# Usage:
+#   docker compose up        # foreground (Ctrl+C to stop)
+#   docker compose up -d     # background
+#   docker compose down      # stop + remove containers
+#
+# Open http://localhost:3000 in any browser. Works on macOS, Windows, Linux.
+#
+# All services are open source:
+#   - mongo:    MongoDB Community 7 (SSPL)
+#   - server:   Node.js 20 LTS + Express + Mongoose (MIT)
+#   - client:   React 18 + Vite + nginx (MIT / BSD)
+
+services:
+
+  # ---------- MongoDB ----------
+  mongo:
+    image: mongo:7
+    container_name: bandaru-mongo
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_DATABASE: bandaru
+    volumes:
+      - mongo-data:/data/db
+    networks:
+      - bandaru-net
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.runCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ---------- Express backend ----------
+  server:
+    build: ./server
+    container_name: bandaru-server
+    restart: unless-stopped
+    depends_on:
+      mongo:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      MONGO_URI: mongodb://mongo:27017/bandaru
+      # Data source: yahoo (default, no auth) | schwab (needs SCHWAB_API_KEY+SECRET)
+      DATA_SOURCE: ${DATA_SOURCE:-yahoo}
+      SCHWAB_API_KEY: ${SCHWAB_API_KEY:-}
+      SCHWAB_APP_SECRET: ${SCHWAB_APP_SECRET:-}
+      SCHWAB_CALLBACK_URL: ${SCHWAB_CALLBACK_URL:-https://127.0.0.1}
+    ports:
+      - "4000:4000"
+    networks:
+      - bandaru-net
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://localhost:4000/api/version || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  # ---------- React frontend (served via nginx) ----------
+  client:
+    build:
+      context: ./client
+      args:
+        VITE_API_BASE: /api    # nginx proxies /api → server
+    container_name: bandaru-client
+    restart: unless-stopped
+    depends_on:
+      - server
+    ports:
+      - "3000:80"
+    networks:
+      - bandaru-net
+
+volumes:
+  mongo-data:
+
+networks:
+  bandaru-net:
+    driver: bridge

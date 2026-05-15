@@ -55,5 +55,28 @@ build/
 dist/
 *.spec.bak
 
+# ----- Node.js / npm / Vite -----
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json.backup
+.npm/
+.eslintcache
+.parcel-cache/
+.next/
+.nuxt/
+.cache/
+.vite/
+dist/
+build/
+
+# ----- Docker -----
+.dockerignore.bak
+
+# ----- MongoDB local data (if anyone runs Mongo without volume) -----
+data/
+*.bson
+
 # ----- Keep the example so first-time users know the .env shape -----
 !.env.example
