@@ -42,13 +42,30 @@ if errorlevel 1 (
 :dockerok
 echo [x] Docker is running
 
-REM --- 2. Choose the data source ---
+REM --- 2. Environment file + data source ---
+REM docker compose --env-file needs .env to exist - even on free Yahoo data.
+REM On a fresh copy there is no .env (git-ignored so no secrets are committed),
+REM so seed one from .env.example. start.bat then works from any folder.
+if not exist ".env" (
+  if exist ".env.example" (
+    copy /Y ".env.example" ".env" >nul
+    echo [!] No .env found - created one from .env.example ^(placeholder keys^).
+    echo     Add real SCHWAB_API_KEY / SCHWAB_APP_SECRET to .env for live data.
+  ) else (
+    type nul > ".env"
+    echo [!] No .env or .env.example found - created an empty .env.
+  )
+) else (
+  echo [x] .env found
+)
+
 REM MODE ends up "schwab" (real-time) or "yahoo" (free, ~15-min delayed).
 set "MODE="
 set "HAS_CREDS=0"
-if exist .env (
-  findstr /R "^SCHWAB_API_KEY=.\+" .env >nul 2>&1 && findstr /R "^SCHWAB_APP_SECRET=.\+" .env >nul 2>&1 && set "HAS_CREDS=1"
-)
+findstr /R "^SCHWAB_API_KEY=.\+" .env >nul 2>&1 && findstr /R "^SCHWAB_APP_SECRET=.\+" .env >nul 2>&1 && set "HAS_CREDS=1"
+REM Placeholder values shipped in .env.example do NOT count as real credentials.
+findstr /R "^SCHWAB_API_KEY=your_" .env >nul 2>&1 && set "HAS_CREDS=0"
+findstr /R "^SCHWAB_APP_SECRET=your_" .env >nul 2>&1 && set "HAS_CREDS=0"
 
 if "!HAS_CREDS!"=="0" (
   echo [!] No Schwab API keys found in .env.

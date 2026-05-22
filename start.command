@@ -42,15 +42,36 @@ if ! docker_up; then
 fi
 ok "Docker is running"
 
-# ─────────────────────── 2. Choose the data source ─────────────────
+# ─────────────────── 2. Environment file + data source ─────────────
+step "2. Setting up the environment"
+
+# docker compose --env-file needs the .env file to exist — even on free
+# Yahoo data. On a fresh copy there is no .env (it's git-ignored so no
+# secrets are ever committed), so seed one from .env.example. This makes
+# start.command work no matter which folder it is launched from.
+if [ ! -f "$ROOT/.env" ]; then
+  if [ -f "$ROOT/.env.example" ]; then
+    cp "$ROOT/.env.example" "$ROOT/.env"
+    info "No .env found — created one from .env.example (placeholder keys)."
+    info "Add real SCHWAB_API_KEY / SCHWAB_APP_SECRET to .env for live data."
+  else
+    : > "$ROOT/.env"
+    warn "No .env or .env.example found — created an empty .env."
+  fi
+else
+  ok ".env found"
+fi
+
 # MODE ends up "schwab" (real-time) or "yahoo" (free, ~15-min delayed).
-step "2. Choosing the data source"
 MODE=""
 
+# Real Schwab credentials present? The placeholder values shipped in
+# .env.example (your_schwab_app_key / your_schwab_app_secret) do NOT count.
 HAS_CREDS=0
-if [ -f .env ] \
-   && grep -q '^SCHWAB_API_KEY=.\+' .env \
-   && grep -q '^SCHWAB_APP_SECRET=.\+' .env; then
+if grep -Eq '^SCHWAB_API_KEY=.+' "$ROOT/.env" \
+   && grep -Eq '^SCHWAB_APP_SECRET=.+' "$ROOT/.env" \
+   && ! grep -Eq '^SCHWAB_API_KEY=your_' "$ROOT/.env" \
+   && ! grep -Eq '^SCHWAB_APP_SECRET=your_' "$ROOT/.env"; then
   HAS_CREDS=1
 fi
 

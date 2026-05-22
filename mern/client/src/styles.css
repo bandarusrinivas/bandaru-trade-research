@@ -505,6 +505,123 @@ body { margin: 0; background: var(--bg); color: var(--text); font-family: -apple
   border-top: 1px solid var(--border); padding-top: 3px;
 }
 
+/* ----- Premium Simulator (Simulated Returns) ----- */
+.decay-page h3 { margin: 0 0 8px; font-size: 14px; color: var(--text); }
+.err { color: var(--pink); font-size: 12px; margin: 8px 0 0; }
+
+.sim-toolbar { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+.sim-toolbar h2 { margin: 0; }
+.sim-view-toggle { display: flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+.sim-view-toggle button {
+  background: transparent; color: var(--muted); border: 0;
+  padding: 6px 16px; cursor: pointer; font-size: 12px; font-weight: 600;
+}
+.sim-view-toggle button:hover { color: var(--text); }
+.sim-view-toggle button.active { background: var(--blue); color: #fff; }
+
+.sim-card { display: flex; flex-direction: column; }
+.sim-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+.sim-contract { font-size: 15px; font-weight: 700; font-family: ui-monospace, monospace; }
+.sim-contract b { color: var(--blue); }
+.sim-mult {
+  margin-left: 8px; font-size: 11px; color: var(--gold);
+  border: 1px solid var(--border); border-radius: 10px; padding: 1px 8px;
+}
+.sim-badge {
+  font-size: 10px; color: var(--muted); border: 1px solid var(--border);
+  border-radius: 4px; padding: 3px 8px; white-space: nowrap;
+}
+
+.sim-returns-label {
+  margin-top: 14px; font-size: 13px; color: var(--muted);
+  display: flex; align-items: center; gap: 6px;
+}
+.sim-info { cursor: help; opacity: 0.55; font-size: 11px; }
+
+.sim-pnl-row { display: flex; align-items: center; gap: 12px; margin-top: 2px; }
+.sim-pnl {
+  font-size: 40px; font-weight: 800; line-height: 1.1;
+  font-family: ui-monospace, monospace; letter-spacing: -0.5px;
+}
+.sim-pnl.pos { color: var(--green); }
+.sim-pnl.neg { color: var(--pink); }
+.sim-swap {
+  width: 28px; height: 28px; border-radius: 50%;
+  background: var(--panel-2); color: var(--muted);
+  border: 1px solid var(--border); cursor: pointer; font-size: 13px;
+}
+.sim-swap:hover { color: var(--text); border-color: var(--blue); }
+
+.sim-sub { margin-top: 5px; font-size: 12px; color: var(--muted); }
+.sim-sub b { color: var(--text); font-family: ui-monospace, monospace; }
+.sim-dot { margin: 0 7px; opacity: 0.5; }
+
+/* decay chart */
+.sim-chart-wrap { position: relative; margin: 14px 0 4px; }
+.sim-svg { width: 100%; height: auto; display: block; background: #0b0e13; border-radius: 8px; }
+.sim-axis-text { fill: #6a727c; font-size: 9px; font-family: ui-monospace, monospace; }
+.sim-now-text { fill: #c5cdd6; font-size: 10px; font-weight: 700; }
+.sim-x-text { fill: #8a929d; font-size: 10px; font-family: ui-monospace, monospace; }
+.sim-x-text.exp { fill: #c5cdd6; font-weight: 700; }
+.sim-tip {
+  position: absolute; transform: translate(-50%, -132%);
+  background: rgba(13,17,23,0.97); border: 1px solid var(--border);
+  border-radius: 6px; padding: 5px 9px; pointer-events: none;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.5); white-space: nowrap;
+}
+.sim-tip b { font-size: 14px; font-family: ui-monospace, monospace; display: block; }
+.sim-tip b.pos { color: var(--green); }
+.sim-tip b.neg { color: var(--pink); }
+.sim-tip span { font-size: 10px; color: var(--muted); }
+
+/* underlying-price slider */
+.sim-slider-wrap { position: relative; margin: 30px 6px 4px; }
+.sim-bubble {
+  position: absolute; top: -24px; transform: translateX(-50%);
+  background: #000; color: #fff; font-size: 12px; font-weight: 700;
+  font-family: ui-monospace, monospace; padding: 3px 9px; border-radius: 5px;
+  white-space: nowrap;
+}
+.sim-bubble::after {
+  content: ""; position: absolute; left: 50%; bottom: -4px;
+  transform: translateX(-50%); border: 4px solid transparent;
+  border-top-color: #000; border-bottom: 0;
+}
+.sim-slider {
+  -webkit-appearance: none; appearance: none; width: 100%; height: 6px;
+  border-radius: 3px; outline: none; cursor: pointer; margin: 0;
+  background: linear-gradient(to right,
+    var(--green) 0 var(--pct, 50%), var(--panel-2) var(--pct, 50%) 100%);
+}
+.sim-slider::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none;
+  width: 20px; height: 20px; border-radius: 50%;
+  background: #fff; border: 3px solid var(--green);
+  cursor: pointer; box-shadow: 0 1px 4px rgba(0,0,0,0.5);
+}
+.sim-slider::-moz-range-thumb {
+  width: 18px; height: 18px; border-radius: 50%;
+  background: #fff; border: 3px solid var(--green); cursor: pointer;
+}
+.sim-scale {
+  display: flex; justify-content: space-between; align-items: center; gap: 8px;
+  margin-top: 9px; font-size: 10px; color: var(--muted);
+  font-family: ui-monospace, monospace;
+}
+.sim-scale-mid { font-family: -apple-system, system-ui, sans-serif; opacity: 0.7; }
+
+.sim-foot {
+  display: flex; justify-content: space-between; align-items: center;
+  gap: 10px; margin-top: 16px; padding-top: 12px;
+  border-top: 1px solid var(--border); flex-wrap: wrap; font-size: 11px;
+}
+.sim-foot b { color: var(--text); font-family: ui-monospace, monospace; }
+.sim-reset {
+  background: transparent; color: var(--muted); border: 1px solid var(--border);
+  border-radius: 4px; padding: 5px 12px; cursor: pointer; font-size: 11px;
+}
+.sim-reset:hover { color: var(--text); border-color: var(--blue); }
+
 /* ----- Trade Journal ----- */
 .trade-form { display: flex; gap: 6px; flex-wrap: wrap; margin: 12px 0; }
 .trade-form input, .trade-form select { background: var(--panel-2); color: var(--text); border: 1px solid var(--border); padding: 4px 8px; border-radius: 3px; }

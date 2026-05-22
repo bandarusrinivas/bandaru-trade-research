@@ -26,6 +26,44 @@ function tradingHoursLeftToday() {
   return (closeMin - nowMin) / 60;
 }
 
+const r2 = (v) => Math.round(v * 100) / 100;
+
+// "Now" as an approximate US/Eastern Date
+function etNowDate() {
+  const d = new Date();
+  return new Date(d.getTime() + ((-5 * 60) - d.getTimezoneOffset()) * 60000);
+}
+
+// Build the clock-time points the simulator plots, from "Now" to expiration.
+//  - 0DTE  → Now, each upcoming whole hour (10 AM…3 PM), Exp
+//  - >0DTE → Now, three evenly spaced steps, Exp
+function buildSimTimePoints(dte, totalHoursLeft) {
+  const pts = [{ label: "Now", hours_left: r2(totalHoursLeft), kind: "now" }];
+  if (dte === 0) {
+    const startHr = etNowDate().getHours() + 1;          // next whole clock hour
+    for (let h = Math.max(startHr, 10); h <= 15; h++) {
+      const hoursToClose = 16 - h;                        // h:00 → 4:00 PM expiration
+      if (hoursToClose >= totalHoursLeft - 0.05) continue; // not actually after "now"
+      if (hoursToClose <= 0.05) continue;
+      const label = h === 12 ? "12 PM" : h > 12 ? `${h - 12} PM` : `${h} AM`;
+      pts.push({ label, hours_left: hoursToClose, kind: "mid" });
+    }
+  } else {
+    const N = 4;
+    for (let i = 1; i < N; i++) {
+      const hrs = (totalHoursLeft * (N - i)) / N;
+      const daysLeft = hrs / 6.5;
+      pts.push({
+        label: daysLeft >= 1 ? `${daysLeft.toFixed(1)}d` : `${hrs.toFixed(1)}h`,
+        hours_left: r2(hrs),
+        kind: "mid",
+      });
+    }
+  }
+  pts.push({ label: "Exp", hours_left: 0, kind: "exp" });
+  return pts;
+}
+
 router.get("/", async (req, res) => {
   const ticker = (req.query.ticker || "SPY").toString().toUpperCase();
   const type = (req.query.type || "call").toString().toLowerCase() === "put" ? "put" : "call";
@@ -164,6 +202,33 @@ router.get("/", async (req, res) => {
       if (d < bestDiff) { bestDiff = d; spotRowIdx = i; }
     });
 
+    // ───────── Simulator grid — fine underlying price × clock time ─────────
+    // Powers the "Simulated Returns" view. The client scrubs an underlying
+    // price on a slider and reads premium-vs-time straight out of this grid
+    // (with linear interpolation between rows) — no extra round-trips.
+    const simTimePoints = buildSimTimePoints(dte, totalHoursLeft);
+    const simPad = dte === 0 ? 0.06 : 0.12;          // ± range around spot
+    const simLo = spot * (1 - simPad);
+    const simHi = spot * (1 + simPad);
+    const SIM_STEPS = 181;
+    const simPriceAxis = [];
+    for (let i = 0; i < SIM_STEPS; i++) {
+      simPriceAxis.push(r2(simLo + ((simHi - simLo) * i) / (SIM_STEPS - 1)));
+    }
+    let simSpotIdx = 0, simBest = Infinity;
+    simPriceAxis.forEach((p, i) => {
+      const d = Math.abs(p - spot);
+      if (d < simBest) { simBest = d; simSpotIdx = i; }
+    });
+    const simGrid = simPriceAxis.map((S) =>
+      simTimePoints.map((tp) =>
+        r2(blackScholes({
+          S, K: strike, T: yearsFromHours(tp.hours_left),
+          r: RISK_FREE, sigma: iv, type,
+        }).price)
+      )
+    );
+
     res.json({
       ticker,
       spot: Math.round(spot * 100) / 100,
@@ -196,6 +261,16 @@ router.get("/", async (req, res) => {
         now_col: nowColIdx,              // current time column
         spot_row: spotRowIdx,            // current spot row
         expiration_time: "16:00",
+      },
+
+      // Simulated Returns: fine underlying-price (rows) × clock time (cols).
+      // grid[priceIdx][timeIdx] = modeled premium per share.
+      simulator: {
+        price_axis: simPriceAxis,        // ascending underlying prices
+        spot_index: simSpotIdx,          // row closest to current spot
+        time_points: simTimePoints,      // [{label, hours_left, kind}] Now → Exp
+        grid: simGrid,
+        entry_premium: r2(greeks.price), // premium at spot, now (default cost basis)
       },
     });
   } catch (e) {
