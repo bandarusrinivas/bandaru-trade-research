@@ -123,15 +123,22 @@ class SchwabClient:
     def get_today_intraday(
         self, ticker: str = "SPY", frequency: int = 5
     ) -> list[dict]:
+        """
+        Returns today's intraday candles. schwab-py 1.4+ uses named methods
+        per-interval (no `frequency=` kwarg), so dispatch on the requested
+        minute interval.
+        """
         et = pytz.timezone("America/New_York")
         end_dt = datetime.now(et)
         start_dt = end_dt.replace(hour=4, minute=0, second=0, microsecond=0)
-        resp = self.client.get_price_history_every_minute(
-            ticker,
-            start_datetime=start_dt,
-            end_datetime=end_dt,
-            frequency=frequency,
-        )
+        method = {
+            1:  self.client.get_price_history_every_minute,
+            5:  self.client.get_price_history_every_five_minutes,
+            10: self.client.get_price_history_every_ten_minutes,
+            15: self.client.get_price_history_every_fifteen_minutes,
+            30: self.client.get_price_history_every_thirty_minutes,
+        }.get(int(frequency), self.client.get_price_history_every_five_minutes)
+        resp = method(ticker, start_datetime=start_dt, end_datetime=end_dt)
         resp.raise_for_status()
         return (resp.json() or {}).get("candles", []) or []
 

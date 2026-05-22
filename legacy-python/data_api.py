@@ -31,7 +31,46 @@ import pytz
 from dotenv import load_dotenv
 from flask import Flask, jsonify, request
 
-load_dotenv()
+# ---------------------------------------------------------------------------
+# Credential loading.
+#
+# IMPORTANT: the project-root .env contains SCHWAB_TOKEN_PATH=./schwab_token.json
+# which is correct for host use but WRONG inside the container (the token is
+# volume-mounted at /tokens/schwab_token.json). docker-compose sets the correct
+# value via the `environment:` block. So we:
+#   1. Remember the container-correct token path BEFORE loading .env
+#   2. load_dotenv(override=True) to pull in SCHWAB_API_KEY / SCHWAB_APP_SECRET
+#   3. Re-pin SCHWAB_TOKEN_PATH so the host .env value can't break the container
+# ---------------------------------------------------------------------------
+_container_token_path = os.environ.get("SCHWAB_TOKEN_PATH")  # set by docker-compose
+
+for _candidate in ("/app/.env", "/tokens/.env", ".env"):
+    if os.path.exists(_candidate):
+        load_dotenv(_candidate, override=True)
+        print(f"[data_api] loaded .env from {_candidate}")
+
+# Re-pin the token path. Priority:
+#   1. The path docker-compose injected (if it points somewhere real)
+#   2. /tokens/schwab_token.json if the /tokens volume is mounted (container)
+#   3. Whatever .env said (host / local dev)
+if os.path.isdir("/tokens"):
+    os.environ["SCHWAB_TOKEN_PATH"] = "/tokens/schwab_token.json"
+elif _container_token_path:
+    os.environ["SCHWAB_TOKEN_PATH"] = _container_token_path
+print(f"[data_api] SCHWAB_TOKEN_PATH = {os.environ.get('SCHWAB_TOKEN_PATH')}")
+
+_have_key    = bool(os.environ.get("SCHWAB_API_KEY"))
+_have_secret = bool(os.environ.get("SCHWAB_APP_SECRET"))
+_token_path  = os.environ.get("SCHWAB_TOKEN_PATH", "")
+if not (_have_key and _have_secret):
+    print("[data_api] WARNING: SCHWAB_API_KEY or SCHWAB_APP_SECRET is missing!")
+    print("[data_api]   key present:", _have_key, "  secret present:", _have_secret)
+else:
+    print("[data_api] Schwab credentials loaded")
+if _token_path and not os.path.exists(_token_path):
+    print(f"[data_api] WARNING: token file not found at {_token_path}")
+elif _token_path:
+    print(f"[data_api] token file found at {_token_path}")
 
 # Add this folder to sys.path so we can import src.clients.schwab_client
 sys.path.insert(0, os.path.dirname(__file__))
@@ -63,18 +102,107 @@ def get_client() -> SchwabClient:
         raise
 
 
+def reset_client():
+    """
+    Drop the cached SchwabClient so the next request re-reads the token file.
+    Called after a token error — lets a freshly re-OAuth'd token take effect
+    without needing a container restart.
+    """
+    global _client
+    _client = None
+
+
 def err_response(err: Exception, status: int = 500):
-    msg = str(err)
-    # Differentiate token errors so the MERN side can show a clearer message
-    if "token" in msg.lower() or "401" in msg or "unauthorized" in msg.lower():
+    """
+    Surface the *actual* Schwab response so we can debug 401/403/etc. Many
+    schwab-py errors stringify with empty bodies — we dig into the underlying
+    httpx response when present to get the real reason.
+    """
+    import traceback
+    msg = str(err) or err.__class__.__name__
+    detail = {}
+
+    # Reach into httpx.HTTPStatusError if that's what was raised
+    resp = getattr(err, "response", None)
+    if resp is not None:
+        detail["http_status"] = getattr(resp, "status_code", None)
+        try:
+            detail["http_body"] = resp.json()
+        except Exception:
+            try:
+                detail["http_body"] = resp.text[:500]
+            except Exception:
+                pass
+        try:
+            detail["http_url"] = str(resp.request.url) if resp.request else None
+        except Exception:
+            pass
+
+    # Print a full traceback in the sidecar container logs so the user can see it
+    print(f"\n[data_api] ERROR: {type(err).__name__}: {msg}")
+    if detail:
+        print(f"[data_api] detail: {detail}")
+    traceback.print_exc()
+
+    is_auth = (
+        "token" in msg.lower()
+        or "401" in msg
+        or "unauthorized" in msg.lower()
+        or detail.get("http_status") in (401, 403)
+    )
+    if is_auth:
+        # Drop the cached client so a freshly re-authorized token is picked up
+        # on the next request without a container restart.
+        reset_client()
         status = 503
-        msg = f"Schwab token invalid or expired ({msg}). Re-run auth-schwab.command."
-    return jsonify({"error": msg}), status
+        body = {
+            "error": "Schwab token rejected — re-run auth-schwab.command",
+            "raw": msg,
+            **detail,
+        }
+    else:
+        body = {"error": msg, **detail}
+    return jsonify(body), status
 
 
 # ---------------------------------------------------------------------------
 # Health
 # ---------------------------------------------------------------------------
+@app.route("/data/raw-test")
+def raw_test():
+    """
+    Hits Schwab's /quotes endpoint directly and returns the FULL raw response.
+    Use this to debug token_invalid errors — shows exactly what Schwab is
+    sending back (status code + body) so we can tell if the token is bad,
+    the app permission is missing, or the account doesn't have market data.
+    """
+    ticker = request.args.get("ticker", "SPY").upper()
+    try:
+        client = get_client()
+        resp = client.client.get_quote(ticker)
+        body = None
+        try:
+            body = resp.json()
+        except Exception:
+            body = resp.text[:1000]
+        return jsonify({
+            "ticker": ticker,
+            "http_status": resp.status_code,
+            "http_url": str(resp.request.url) if resp.request else None,
+            "ok": resp.is_success,
+            "body": body,
+            "token_path": os.environ.get("SCHWAB_TOKEN_PATH"),
+        })
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            "ticker": ticker,
+            "exception": type(e).__name__,
+            "message": str(e),
+        }), 500
+
+
 @app.route("/health")
 def health():
     token_path = os.environ.get(
@@ -86,6 +214,8 @@ def health():
         "source": "schwab",
         "token_path": token_path,
         "token_exists": os.path.exists(token_path),
+        "api_key_loaded":    bool(os.environ.get("SCHWAB_API_KEY")),
+        "app_secret_loaded": bool(os.environ.get("SCHWAB_APP_SECRET")),
     })
 
 
@@ -113,15 +243,20 @@ def quote():
 
 # ---------------------------------------------------------------------------
 # /data/intraday — match yahoo.js getIntradayBars() shape: [{t,o,h,l,c,v},…]
+# Multi-day support: takes period=1d|2d|3d|5d and uses schwab-py's per-minute
+# methods with an explicit start_datetime.
 # ---------------------------------------------------------------------------
 def _interval_to_frequency_minutes(interval: str) -> int:
-    """Map MERN-style interval strings to Schwab frequency-in-minutes."""
     table = {
         "1m": 1, "5m": 5, "15m": 15, "30m": 30,
-        "60m": 30,  # Schwab only supports up to 30-min, downsample later if needed
-        "1h": 30, "1d": 30,
+        "60m": 30, "1h": 30,
     }
     return table.get(interval.lower(), 5)
+
+
+PERIOD_DAYS_INTRADAY = {
+    "1d": 1, "2d": 2, "3d": 3, "5d": 5,
+}
 
 
 @app.route("/data/intraday")
@@ -131,12 +266,30 @@ def intraday():
     period = request.args.get("period", "1d")
     try:
         freq = _interval_to_frequency_minutes(interval)
-        candles = get_client().get_today_intraday(ticker, frequency=freq)
-        # Optionally extend to multi-day periods
-        if period in ("2d", "5d"):
-            # Schwab's get_today_intraday is single-day; for multi-day we'd
-            # need a longer history call. For now return today's bars.
-            pass
+        client = get_client()
+        end_dt = datetime.now(ET)
+        days = PERIOD_DAYS_INTRADAY.get(period, 1)
+
+        if days == 1:
+            # Single day → today's pre-market open at 4 AM ET
+            start_dt = end_dt.replace(hour=4, minute=0, second=0, microsecond=0)
+        else:
+            # Multi-day → roll back N calendar days from now
+            start_dt = end_dt - timedelta(days=days)
+
+        # schwab-py 1.4+: pick the named method matching the requested interval
+        method = {
+            1:  client.client.get_price_history_every_minute,
+            5:  client.client.get_price_history_every_five_minutes,
+            10: client.client.get_price_history_every_ten_minutes,
+            15: client.client.get_price_history_every_fifteen_minutes,
+            30: client.client.get_price_history_every_thirty_minutes,
+        }.get(freq, client.client.get_price_history_every_five_minutes)
+
+        resp = method(ticker, start_datetime=start_dt, end_datetime=end_dt)
+        resp.raise_for_status()
+        candles = (resp.json() or {}).get("candles", []) or []
+
         return jsonify([
             {
                 "t": c.get("datetime"),

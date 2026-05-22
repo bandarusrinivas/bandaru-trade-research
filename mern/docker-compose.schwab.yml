@@ -1,0 +1,22 @@
+# Bandaru Trade Research — Schwab profile override.
+#
+# Combined with the base docker-compose.yml to force DATA_SOURCE=schwab on the
+# server container regardless of shell env inheritance quirks. Use:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.schwab.yml \
+#                  --profile schwab up -d --build --force-recreate
+#
+# The start-docker-schwab launcher does this for you.
+
+services:
+  server:
+    environment:
+      # Hardcoded — wins over the ${DATA_SOURCE:-yahoo} default in the base file.
+      DATA_SOURCE: schwab
+      SCHWAB_SIDECAR_URL: http://schwab:5050
+      SCHWAB_FALLBACK_TO_YAHOO: "true"
+    depends_on:
+      mongo:
+        condition: service_healthy
+      schwab:
+        condition: service_healthy

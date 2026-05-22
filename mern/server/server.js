@@ -14,6 +14,9 @@ import chainRoute from "./routes/chain.js";
 import watchlistRoute from "./routes/watchlist.js";
 import screenerRoute from "./routes/screener.js";
 import tradesRoute from "./routes/trades.js";
+import diagnoseRoute from "./routes/diagnose.js";
+import profileRoute from "./routes/profile.js";
+import optionDecayRoute from "./routes/optionDecay.js";
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -31,6 +34,9 @@ app.use("/api/chain", chainRoute);
 app.use("/api/watchlist", watchlistRoute);
 app.use("/api/screener", screenerRoute);
 app.use("/api/trades", tradesRoute);    // MongoDB-backed trade journal
+app.use("/api/diagnose", diagnoseRoute); // probes each adapter, reports pass/fail
+app.use("/api/profile", profileRoute);   // full stock profile + 200-word summary
+app.use("/api/option-decay", optionDecayRoute); // Black-Scholes premium decay grid
 
 // Health check (also used by docker-compose healthcheck)
 app.get("/", (_req, res) => res.json({ name: "Bandaru Trade Research", status: "ok" }));

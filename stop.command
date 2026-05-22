@@ -1,38 +1,57 @@
 #!/usr/bin/env bash
-# Bandaru Trade Research — stop launcher (Mac)
+# Bandaru Trade Research — universal stop (Mac).
+# Tears down whichever mode is currently running (Docker / Local / Python)
+# and closes the dashboard browser tabs.
 
-set -e
-cd "$(dirname "$0")"
+# shellcheck disable=SC1091
+source "$(dirname "$0")/scripts/_shared.sh"
+resolve_root
 
-echo "Stopping Bandaru Trade Research..."
+banner "Bandaru Trade Research — STOP"
 
-# 1) Docker mode (include schwab profile so the sidecar comes down too)
-if command -v docker >/dev/null 2>&1 && [ -f mern/docker-compose.yml ]; then
-  if docker compose -f mern/docker-compose.yml --profile schwab ps --services 2>/dev/null | grep -q .; then
-    echo "  - Bringing down docker compose stack..."
-    ( cd mern && docker compose --profile schwab down )
+# ───────────────────────── 1. Docker stack ─────────────────────────
+step "1. Stopping Docker containers (all profiles)"
+if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
+  if [ -f mern/docker-compose.yml ]; then
+    (
+      cd mern
+      # All known profiles
+      docker compose --profile schwab down --remove-orphans 2>&1 | sed 's/^/  /' || true
+    )
+    # Force-remove any zombie bandaru containers
+    for c in bandaru-mongo bandaru-schwab bandaru-server bandaru-client; do
+      if docker ps -aq -f "name=^${c}$" 2>/dev/null | grep -q .; then
+        docker rm -f "$c" >/dev/null 2>&1 && ok "removed zombie container $c"
+      fi
+    done
   fi
+else
+  info "Docker not running — skipping container cleanup"
 fi
 
-# 2) Dev mode — kill PIDs recorded by start.command
+# ─────────────────────── 2. Local Node / Vite ──────────────────────
+step "2. Stopping local Node processes"
 if [ -f /tmp/bandaru.pids ]; then
   for PID in $(cat /tmp/bandaru.pids); do
     if kill -0 "$PID" 2>/dev/null; then
-      echo "  - Killing PID $PID"
-      kill "$PID" 2>/dev/null || true
+      kill -9 "$PID" 2>/dev/null && ok "killed PID $PID (tracked)"
     fi
   done
   rm -f /tmp/bandaru.pids
 fi
 
-# 3) Belt-and-suspenders: kill any stray process on :4000 / :5173 / :5000
-#    4000 = MERN Express, 5173 = Vite dev, 5000 = legacy Python Flask
-for PORT in 4000 5173 5000; do
-  PID=$(lsof -ti :$PORT 2>/dev/null || true)
-  if [ -n "$PID" ]; then
-    echo "  - Killing leftover process on port $PORT (PID $PID)"
-    kill "$PID" 2>/dev/null || true
-  fi
-done
+# ──────────────── 3. Sweep non-Docker leftovers on app ports ───────
+step "3. Sweeping non-Docker leftovers on :4000 :5000 :5173"
+kill_non_docker_pids 4000 5000 5173
 
-echo "✓ Stopped."
+# ──────────────────────── 4. Browser tabs ──────────────────────────
+step "4. Closing dashboard tabs in your browsers"
+close_browser_tabs "localhost:3000"
+close_browser_tabs "localhost:5173"
+close_browser_tabs "127.0.0.1:5000"
+close_browser_tabs "localhost:4000/api/diagnose"
+ok "closed any matching tabs (Chrome, Safari, Comet, Arc, Edge, Brave, Vivaldi)"
+
+echo
+ok "Stopped."
+echo "  Re-launch:  double-click start.command"

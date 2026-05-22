@@ -1,8 +1,13 @@
 import { useState } from "react";
 
 const PRESETS = ["SPY", "QQQ", "IWM", "NVDA", "TSLA", "AAPL"];
+const REFRESH_OPTIONS = [
+  { label: "5s",  ms: 5_000 },
+  { label: "10s", ms: 10_000 },
+  { label: "30s", ms: 30_000 },
+];
 
-export default function Header({ ticker, setTicker, analysis }) {
+export default function Header({ ticker, setTicker, analysis, refreshMs, setRefreshMs }) {
   const [draft, setDraft] = useState(ticker);
   const onGo = () => setTicker(draft.trim().toUpperCase() || "SPY");
 
@@ -26,6 +31,18 @@ export default function Header({ ticker, setTicker, analysis }) {
             <button key={t} onClick={() => { setDraft(t); setTicker(t); }}>{t}</button>
           ))}
         </span>
+      </div>
+      <div className="refresh-picker" title="Auto-refresh interval">
+        <label>Refresh</label>
+        {REFRESH_OPTIONS.map((opt) => (
+          <button
+            key={opt.label}
+            className={refreshMs === opt.ms ? "active" : ""}
+            onClick={() => setRefreshMs?.(opt.ms)}
+          >
+            {opt.label}
+          </button>
+        ))}
       </div>
       <div className="quote">
         <span className="ticker">{ticker}</span>

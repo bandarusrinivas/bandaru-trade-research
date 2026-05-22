@@ -1,416 +1,316 @@
 # Bandaru Trade Research — User Guide
 
-A step-by-step manual for launching, using, and stopping the app on macOS and Windows.
+**Version 2.1.1**
 
-> **Architecture deep-dive?** See [PRODUCT_GUIDE.md](PRODUCT_GUIDE.md).
-> **Building or deploying?** See [BUILD.md](BUILD.md) and [DEPLOY.md](DEPLOY.md).
+A complete, step-by-step manual for installing, running, and troubleshooting
+Bandaru Trade Research on **macOS** and **Windows**.
+
+The app runs as a small set of Docker containers. You control all of it with
+just **two scripts**:
+
+| | Start everything | Stop everything |
+|---|---|---|
+| **macOS** | `start.command` | `stop.command` |
+| **Windows** | `start.bat` | `stop.bat` |
+
+`start` does the entire job in one double-click — it checks Docker, signs you
+in to Schwab when needed, builds and launches every container, and opens the
+dashboard. There is no menu and no separate sign-in step.
 
 ---
 
 ## Contents
 
-1. [Pick a launch mode](#1-pick-a-launch-mode)
-2. [First-time setup](#2-first-time-setup)
-3. [Launch the app — Docker mode](#3-launch-the-app--docker-mode)
-4. [Launch the app — Local mode (no Docker)](#4-launch-the-app--local-mode-no-docker)
-5. [Launch the app — Auto mode](#5-launch-the-app--auto-mode)
-6. [Stop the app](#6-stop-the-app)
-7. [The dashboard at a glance](#7-the-dashboard-at-a-glance)
-8. [Daily workflow](#8-daily-workflow)
-9. [Switching data sources (Yahoo ↔ Schwab)](#9-switching-data-sources-yahoo--schwab)
-10. [Common tasks](#10-common-tasks)
-11. [Troubleshooting](#11-troubleshooting)
+1. [What you need](#1-what-you-need)
+2. [First-time setup — macOS](#2-first-time-setup--macos)
+3. [First-time setup — Windows](#3-first-time-setup--windows)
+4. [Starting the app (every day)](#4-starting-the-app-every-day)
+5. [The Schwab sign-in](#5-the-schwab-sign-in)
+6. [Stopping the app](#6-stopping-the-app)
+7. [A quick tour of the dashboard](#7-a-quick-tour-of-the-dashboard)
+8. [Troubleshooting](#8-troubleshooting)
+9. [Updating the app](#9-updating-the-app)
 
 ---
 
-## 1. Pick a launch mode
+## 1. What you need
 
-Double-click `start.command` (Mac) or `start.bat` (Windows) at the project root. You'll see a menu — pick one of four modes:
+Both platforms need the same things:
 
-| Choice | What runs | URL | Best for |
-|---|---|---|---|
-| 1 — **Docker** | Mongo + Express + nginx in containers (Yahoo data) | http://localhost:3000 | Daily use, persistent Trade Journal |
-| 2 — **Docker + Schwab** | adds the Python data sidecar for real-time data | http://localhost:3000 | Trading hours, real-time signals |
-| 3 — **Local Node** | Express + Vite with your installed Node (Yahoo data) | http://localhost:5173 | No Docker, hot-reload, fast iteration |
-| 4 — **Python (Schwab)** | legacy Flask app, no Docker (real-time) | http://127.0.0.1:5000 | Real-time data without containers |
+**Docker Desktop** — free software that runs the app's containers. It bundles
+everything else the app needs (Node.js, Python, MongoDB), so you do **not**
+install those yourself.
 
-The menu launcher delegates to the matching script in `scripts/mac/` or `scripts/windows/`. You can also call those directly (e.g. `scripts/mac/start-docker.command`) if you want one-click access to a specific mode.
+**A Schwab brokerage account + a free Schwab developer app** — required only
+for *real-time* data. Without it the app still runs fine on free Yahoo Finance
+data, which is delayed roughly 15 minutes.
 
-**Trade Journal availability:**
-- Choices 1 & 2 (Docker) → always on (MongoDB ships in the stack).
-- Choice 3 (Local Node) → on if you have MongoDB running on `localhost:27017`, off otherwise. Everything else still works.
-- Choice 4 (Python) → stored in browser localStorage (not persistent across browsers/devices).
+**Hardware** — any Mac or PC from the last several years with at least 8 GB of
+RAM. The running app uses about 1 GB of RAM and 2 GB of disk.
+
+Your Schwab API keys live in a file named `.env` in the project folder. It must
+contain two lines:
+
+```
+SCHWAB_API_KEY=your_key_here
+SCHWAB_APP_SECRET=your_secret_here
+```
+
+If you do not have a Schwab developer app yet, create one (free) at
+**https://developer.schwab.com** — add the "Market Data Production" product,
+set the callback URL to `https://127.0.0.1`, and copy the App Key and Secret
+into `.env`.
 
 ---
 
-## 2. First-time setup
+## 2. First-time setup — macOS
 
-Do this once. After that, you only need the launch and stop steps.
+**Step 1 — Install Docker Desktop.**
+Download it from **https://www.docker.com/products/docker-desktop**, open the
+`.dmg`, and drag Docker to Applications. Launch Docker Desktop once and wait
+until the whale icon in the menu bar stops animating — that means the engine
+is running.
 
-### 2a. Clone (or download) the repo
+**Step 2 — Put the project folder somewhere stable.**
+Keep the `bandaru-trade-research` folder in your home folder or Documents — not
+in Downloads or the Trash. Moving it later is fine; just don't delete it.
 
-**Option A — git clone:**
+**Step 3 — Confirm your Schwab keys.**
+Open the `.env` file in the project folder with TextEdit and check that
+`SCHWAB_API_KEY` and `SCHWAB_APP_SECRET` both have values after the `=`.
 
-```bash
-git clone https://github.com/bandarusrinivas/bandaru-trade-research.git
-cd bandaru-trade-research
-```
+**Step 4 — First launch (clears Apple's Gatekeeper warning).**
+The very first time, macOS blocks scripts from unidentified developers. Instead
+of double-clicking, **right-click `start.command` → Open**, then click **Open**
+in the dialog. You only do this once; after that a normal double-click works.
 
-**Option B — download ZIP:**
-
-1. Visit https://github.com/bandarusrinivas/bandaru-trade-research
-2. Click the green **Code** button → **Download ZIP**
-3. Extract it anywhere on your computer
-4. Open the extracted folder
-
-### 2b. Install prerequisites for your chosen mode
-
-**For Docker mode:**
-- Install **Docker Desktop** from https://www.docker.com/products/docker-desktop/ (free, open source). Mac and Windows both supported.
-- Launch Docker Desktop once after install — wait for the whale icon to be steady.
-
-**For Local mode:**
-- Install **Node.js 20+ LTS** from https://nodejs.org. On Mac you can also use `brew install node`.
-- Verify: open a terminal and run `node -v`. It should print `v20.x.x` or higher.
-
-You only need one of the two. Auto mode picks whichever is available.
-
-### 2c. Make the Mac scripts executable (Mac only, first run)
-
-Mac normally trusts double-clicks from Finder, but if you cloned via terminal the executable bit may not be set. Fix once:
-
-```bash
-cd bandaru-trade-research
-chmod +x *.command
-```
-
-Windows scripts (`.bat` and `.ps1`) need no setup.
+`start.command` takes over from here — see [section 4](#4-starting-the-app-every-day).
 
 ---
 
-## 3. Launch the app — Docker mode
+## 3. First-time setup — Windows
 
-This is the recommended mode for daily use. It boots the full stack with MongoDB, so your Trade Journal persists across restarts.
+**Step 1 — Install prerequisites.**
+The easiest path: double-click **`install-windows.bat`**. It checks for Docker
+Desktop and Python and points you to the downloads you still need. You can also
+install manually:
 
-### macOS — step by step
+- **Docker Desktop** — https://www.docker.com/products/docker-desktop
+  Docker on Windows needs the **WSL 2** backend; the Docker installer enables
+  it for you and may ask for one reboot.
+- **Python 3.10 or newer** — https://www.python.org/downloads/
+  On the installer's first screen, tick **"Add Python to PATH"**.
 
-1. Open **Finder** → navigate to the `bandaru-trade-research` folder.
-2. Double-click **`start-docker.command`**.
-3. A Terminal window opens. The script:
-   - Verifies Docker is installed and running.
-   - Runs `docker compose up -d --build` in `mern/`.
-   - First time: downloads `node:20-alpine`, `nginx:alpine`, `mongo:7` images (~300 MB total) and builds the server + client images. Takes 2–4 minutes the very first time, ~10 seconds after that.
-4. When the script prints **"Stack is up. Opening http://localhost:3000"**, your default browser opens automatically to the dashboard.
-5. If the browser doesn't open, manually visit **http://localhost:3000**.
+**Step 2 — Launch Docker Desktop** and wait for the whale icon in the system
+tray to go solid (engine running).
 
-**First-run security prompt:** macOS Gatekeeper may say "cannot be opened because it is from an unidentified developer". To bypass once:
-- Right-click `start-docker.command` → **Open** → click **Open** in the dialog.
-- From then on, double-clicking works normally.
+**Step 3 — Put the project folder somewhere stable** — for example
+`C:\Users\<you>\bandaru-trade-research`. Avoid Downloads.
 
-### Windows — step by step
+**Step 4 — Confirm your Schwab keys** in the `.env` file (open with Notepad) —
+`SCHWAB_API_KEY` and `SCHWAB_APP_SECRET` must both have values.
 
-1. Open **File Explorer** → navigate to the `bandaru-trade-research` folder.
-2. Double-click **`start-docker.bat`** (or right-click `start-docker.ps1` → **Run with PowerShell**).
-3. A Command Prompt window opens. The script:
-   - Verifies Docker is installed and the daemon is running.
-   - Runs `docker compose up -d --build` in `mern\`.
-   - Pulls images and builds — same timing as Mac.
-4. When the script prints **"Stack is up. Opening http://localhost:3000"**, your default browser opens to the dashboard.
-5. If the browser doesn't open, manually visit **http://localhost:3000**.
-
-**First-run security prompt:** Windows SmartScreen may say "Windows protected your PC". To bypass once:
-- Click **More info** → **Run anyway**.
-
-**PowerShell execution-policy error?** Open Command Prompt and run:
-
-```bat
-powershell -ExecutionPolicy Bypass -File start-docker.ps1
-```
-
-### What's running after Docker launch
-
-Three containers, all named with the `bandaru-` prefix:
-
-| Container | Image | Port | Purpose |
-|---|---|---|---|
-| `bandaru-mongo` | `mongo:7` | 27017 (internal) | Persistent Trade Journal storage |
-| `bandaru-server` | local build | 4000 (internal) | Express API — pivots, indicators, screener |
-| `bandaru-client` | local build | 3000 → host | nginx serving React SPA + `/api/*` proxy |
-
-Check anytime with: `cd mern && docker compose ps`.
+**Step 5 — First launch.**
+Double-click **`start.bat`**. If Windows SmartScreen shows a blue warning,
+click **More info → Run anyway**. You only do this once.
 
 ---
 
-## 4. Launch the app — Local mode (no Docker)
+## 4. Starting the app (every day)
 
-Use this if you don't want to install Docker, or you're actively editing the code and want Vite hot reload.
+Make sure **Docker Desktop is running** first (whale icon solid). Then:
 
-### macOS — step by step
+- **macOS** — double-click **`start.command`**
+- **Windows** — double-click **`start.bat`**
 
-1. Open Finder → `bandaru-trade-research`.
-2. Double-click **`start-local.command`**.
-3. A Terminal window opens. The script:
-   - Verifies Node 18+ is installed.
-   - Runs `npm install` in `mern/server` and `mern/client` if `node_modules` is missing (~30 seconds first time, skipped after).
-   - Probes `127.0.0.1:27017` — if a MongoDB is running there, the Trade Journal is enabled; otherwise the server boots with the Journal disabled (everything else still works).
-   - Starts Express on port 4000 in the background.
-   - Starts Vite dev server on port 5173 in the background.
-   - Waits for Vite to respond, then opens **http://localhost:5173** in your browser.
-4. Logs go to `/tmp/bandaru-server.log` and `/tmp/bandaru-client.log`. Tail them with `tail -f /tmp/bandaru-server.log` if needed.
+A terminal window opens and walks through seven steps:
 
-### Windows — step by step
+1. **Checking Docker** — if Docker Desktop isn't running, `start` tries to
+   launch it for you and waits up to a minute.
+2. **Checking Schwab credentials** — confirms `.env` has your keys.
+3. **Checking your Schwab sign-in** — if the token is missing or expired,
+   `start` runs the Schwab sign-in automatically (see [section 5](#5-the-schwab-sign-in)).
+4. **Starting all containers** — Mongo, the Schwab data service, the Express
+   API, and the web server. The first run builds the images and can take
+   **5–10 minutes**. Later runs take under a minute.
+5. **Waiting for the dashboard** to come online.
+6. **Checking real-time Schwab data** — if Schwab rejects the token, `start`
+   re-runs the sign-in on the spot and checks again.
+7. **Opening the dashboard** in your browser at **http://localhost:3000**.
 
-1. Open File Explorer → `bandaru-trade-research`.
-2. Double-click **`start-local.bat`** (or right-click `start-local.ps1` → **Run with PowerShell**).
-3. A Command Prompt window opens. The script:
-   - Verifies Node 18+ is installed.
-   - Runs `npm install` if needed.
-   - Probes `127.0.0.1:27017` for an optional MongoDB.
-   - Launches Express and Vite in minimized child Command Prompts titled "Bandaru Server" and "Bandaru Client".
-   - Opens **http://localhost:5173** in your default browser.
-4. Logs go to `%TEMP%\bandaru-server.log` and `%TEMP%\bandaru-client.log`. Type `notepad %TEMP%\bandaru-server.log` to view.
+When it finishes you'll see either:
 
-### Enabling the Trade Journal in Local mode (optional)
+- `✓ Live — real-time Schwab data` — everything is working, or
+- `! ... delayed Yahoo data` — the app is up but couldn't reach Schwab; the
+  message tells you why. See [Troubleshooting](#8-troubleshooting).
 
-If you want the Trade Journal to persist in Local mode, run a local MongoDB on port 27017. The fastest way is via Docker:
-
-```bash
-docker run -d --name bandaru-mongo -p 27017:27017 mongo:7
-```
-
-Or install MongoDB Community Edition natively from https://www.mongodb.com/try/download/community. Restart the launcher after Mongo is up — the script auto-detects it.
+Leave the terminal window open while you use the app — closing it is harmless,
+but it shows useful status.
 
 ---
 
-## 5. Launch the app — Auto mode
+## 5. The Schwab sign-in
 
-The simplest option: one launcher that picks for you.
+Schwab's security tokens **expire every 7 days**, so roughly once a week `start`
+will pause to sign you in again. This is normal and not a bug. When it happens:
 
-### macOS — step by step
+1. A browser window opens to the Schwab login page.
+2. Sign in with your **Schwab brokerage account** (the one you trade with — not
+   the developer portal login).
+3. Approve the **"Bandaru Trade Research"** app on the consent screen.
+4. Schwab redirects to an address starting with `https://127.0.0.1/?code=...`.
+   **The page will look broken** — "this site can't be reached" or a security
+   warning. **That is expected.** Schwab has no real website at that address;
+   the part that matters is the URL itself.
+5. **Copy the entire address bar** — the whole thing, starting with
+   `https://127.0.0.1/?code=` and including everything after it.
+6. Switch back to the terminal window, **paste the URL**, and press Return.
+7. The script exchanges the code for a token, fetches a live SPY price to
+   confirm it works, and continues starting the app.
 
-1. Open Finder → `bandaru-trade-research`.
-2. Double-click **`start.command`**.
-3. The script checks Docker first:
-   - **Docker running** → behaves like `start-docker.command`, opens http://localhost:3000.
-   - **Docker missing or stopped** → falls back to local Node mode, opens http://localhost:5173.
-
-### Windows — step by step
-
-1. Open File Explorer → `bandaru-trade-research`.
-2. Double-click **`start.bat`** (or run `start.ps1` in PowerShell).
-3. Same auto-pick logic — Docker first, Node fallback.
-
----
-
-## 6. Stop the app
-
-One stop script handles all three modes. It tears down whatever happens to be running.
-
-### macOS
-
-1. Open Finder → `bandaru-trade-research`.
-2. Double-click **`stop.command`**.
-3. The script:
-   - Runs `docker compose down` if the Docker stack is up.
-   - Kills the Express and Vite child processes recorded by the local launcher (PIDs stored in `/tmp/bandaru.pids`).
-   - Sweeps anything still listening on ports 4000 and 5173 as a safety net.
-4. When the Terminal window prints **"✓ Stopped."**, you can close it.
-
-### Windows
-
-1. Open File Explorer → `bandaru-trade-research`.
-2. Double-click **`stop.bat`** (or run `stop.ps1` in PowerShell).
-3. Same teardown logic — Docker stack down, Node processes killed, ports 4000/5173 cleared.
-4. The script prints **"Stopped."** and pauses for you to read; press Enter to close.
-
-### Manual stop (if the script can't reach the process)
-
-**Docker mode:**
-
-```bash
-cd bandaru-trade-research/mern
-docker compose down            # graceful shutdown
-docker compose down -v         # also wipes the MongoDB volume (Trade Journal erased)
-```
-
-**Local mode — Mac:**
-
-```bash
-lsof -ti :4000 | xargs kill    # kill whatever is on the Express port
-lsof -ti :5173 | xargs kill    # kill whatever is on the Vite port
-```
-
-**Local mode — Windows (Command Prompt as admin):**
-
-```bat
-for /f "tokens=5" %a in ('netstat -ano ^| findstr :4000') do taskkill /F /PID %a
-for /f "tokens=5" %a in ('netstat -ano ^| findstr :5173') do taskkill /F /PID %a
-```
+**You have about 30 seconds** to paste the URL back before the code expires, so
+move promptly. If it times out, just run `start` again.
 
 ---
 
-## 7. The dashboard at a glance
+## 6. Stopping the app
 
-After launch, the browser opens to a dashboard with seven tabs:
+- **macOS** — double-click **`stop.command`**
+- **Windows** — double-click **`stop.bat`**
 
-| Tab | What it shows |
+This shuts down every container, frees the network ports, and closes the
+dashboard browser tabs. Your **trade journal is preserved** — it lives in a
+MongoDB volume that survives stops and restarts. Tomorrow, just run `start`
+again and your data is still there.
+
+---
+
+## 7. A quick tour of the dashboard
+
+The dashboard opens at **http://localhost:3000** with a ticker picker in the
+header and these tabs:
+
+- **Chart Analysis** — candlestick chart with EMA 8/21/50, pivot support and
+  resistance, volume, MACD, and TTM Squeeze. Mouse-wheel to zoom.
+- **Entry / Exit Alerts** — pivot levels and 0DTE trade suggestions with status
+  badges.
+- **Pro Signals** — stacked EMA, ADX trend strength, MACD, and RSI.
+- **Watchlist** — live quotes for several symbols; click one to switch tickers.
+- **Screener** — scans a list of tickers for actionable setups; click any row
+  to load that ticker.
+- **Trade Journal** — log open and closed trades with P&L; stored in MongoDB.
+- **Options Chain** — calls and puts around the at-the-money strike.
+- **Profile** — company overview, analyst view, earnings, news, and a
+  short/long-term outlook.
+- **Option Decay** — a heatmap of how an option's premium changes with stock
+  price and time decay.
+
+Switch the active symbol any time with the ticker picker in the header.
+
+---
+
+## 8. Troubleshooting
+
+Start here for the quick fix, then read the detailed notes below.
+
+| Symptom | Quick fix |
 |---|---|
-| 📊 **Chart Analysis** | Multi-pane HTML5 candle chart — price + EMA 8/21/50 + pivot S/R + buy/sell arrows + volume + MACD. Heikin-Ashi default, mouse-wheel zoom. |
-| 🚨 **Entry / Exit Alerts** | Pivot levels + suggested 0DTE option trades (Bull Call Break / Bear Put Break) with status badges and reasoning. |
-| 🎯 **Pro Signals** | Stacked EMA, ADX trend strength, MACD, RSI — all daily timeframe. |
-| 👀 **Watchlist** | Multi-symbol live quote tiles. Click any tile to switch the whole dashboard to that ticker. |
-| 🔍 **Screener** | Parallel-scan a list of tickers for entry opportunities, sorted by signal strength. Click a row to switch tickers. |
-| 📒 **Trade Journal** | Persistent log of opened and closed trades with calculated P&L. Backed by MongoDB in Docker mode. |
-| ⛓ **Options Chain** | ±2% strikes around ATM, calls on the left, puts on the right, with bid / ask / IV / OI / volume. |
+| `start` won't open — macOS says "unidentified developer" | Right-click `start.command` → **Open** → **Open**. One time only. |
+| Windows SmartScreen warning | Click **More info → Run anyway**. One time only. |
+| `start` says Docker isn't running | Open **Docker Desktop**, wait for the whale icon to go solid, run `start` again. |
+| Dashboard shows nothing / "can't connect" | The containers are still starting. Wait 30–60 seconds and refresh the browser. |
+| Dashboard works but data looks delayed / `! Yahoo data` | The Schwab token was rejected. See **"Schwab data isn't loading"** below. |
+| Schwab sign-in: "site can't be reached" after login | Expected — copy the whole URL and paste it into the terminal. |
+| Schwab sign-in fails / "code expired" | Run `start` again and paste the redirect URL faster (within ~30 seconds). |
+| Screener is empty or every row errors | The data source is rate-limited. Wait a minute and click **Scan** again. |
+| "Port already in use" | Run `stop`, then `start` again. |
+| First launch is taking many minutes | Normal — the first build is 5–10 minutes. Later runs are fast. |
 
-Above the tabs: brand, ticker picker (SPY/QQQ/IWM/NVDA/TSLA/AAPL presets plus free-text), live SPY quote, Master Verdict banner (BULLISH / BEARISH / MIXED with a GO LONG / GO SHORT action button). Below the tabs: footer with version chip and license.
+### Docker isn't running
 
-Auto-refresh: every **10 seconds** for all data. No manual refresh needed.
+`start` needs Docker Desktop running before it can do anything. Open Docker
+Desktop and wait until the whale icon (menu bar on Mac, system tray on Windows)
+is **solid, not animating**. On Windows, if Docker complains about WSL, open a
+terminal and run `wsl --update`, then restart Docker Desktop.
+
+### Schwab data isn't loading
+
+The dashboard always works — if Schwab is unreachable it automatically falls
+back to delayed Yahoo data. When you want real-time Schwab data back, work
+through this in order:
+
+1. **Check the exact reason.** Open this address in your browser:
+   **http://localhost:3000/api/diagnose?ticker=SPY**
+   It reports precisely what's wrong — expired token, app not approved, missing
+   data permission, or the data service being unreachable.
+
+2. **If it says the token is expired or rejected** — re-run the sign-in.
+   Double-click `auth-schwab.command` (Mac) or `auth-schwab.bat` (Windows),
+   complete the browser steps, and wait for `✓ Token saved AND verified`. Then
+   run `start` again. Remember: Schwab tokens last only 7 days, so this is a
+   routine weekly step.
+
+3. **If you just re-authed and it's *still* rejected** — the running container
+   may be holding the old token. Run `stop`, then `start` — a fresh start
+   forces the container to load the new token from disk.
+
+4. **If a brand-new token is still rejected** — the problem is on Schwab's
+   side, not the app's. Sign in at **https://developer.schwab.com**, open your
+   app, and confirm it is approved ("Ready for use") and has the **Market Data
+   Production** product enabled. A token can't work until the app does.
+
+### The Screener shows errors or no rows
+
+The screener scans dozens of symbols at once. If the data provider is
+temporarily rate-limiting your connection, some rows show errors. Wait about a
+minute and click **Scan** again — results are cached for 5 minutes, so the
+second scan is fast and usually clean. A cold first scan can take 10–15 seconds.
+
+### The dashboard won't open in the browser
+
+Give it time on the first run — building the containers takes several minutes.
+If `http://localhost:3000` still won't load after that, check the terminal
+window `start` opened for error messages, or view the container logs:
+
+```
+cd mern
+docker compose logs -f
+```
+
+(Press Ctrl+C to stop watching the logs.)
+
+### A specific tab shows an error
+
+If one tab misbehaves after an update, the browser may be caching old files.
+Do a hard refresh: **Cmd+Shift+R** (Mac) or **Ctrl+Shift+R** (Windows). If it
+persists, run `stop` then `start` to rebuild with the latest code.
+
+### Starting completely fresh
+
+To wipe everything **including your trade journal** and rebuild from scratch:
+
+```
+cd mern
+docker compose --profile schwab down -v
+```
+
+The `-v` deletes the database volume — only do this if you truly want to erase
+your saved trades. Then run `start` again.
 
 ---
 
-## 8. Daily workflow
+## 9. Updating the app
 
-### Morning — start the session
+When you get new code (a download or `git pull`), simply run `start` again.
+It rebuilds any containers whose code changed and recreates them, so the latest
+version is always what launches. Your trade journal is preserved.
 
-1. Make sure Docker Desktop is running (Docker mode) or that Node is installed (Local mode).
-2. Double-click your preferred launcher (`start-docker.command` / `.bat` / `.ps1` or `start-local.*`).
-3. Wait ~30 seconds for the browser to open.
-4. The dashboard reloads the last ticker you used (saved in browser `localStorage`).
-
-### During the trading day
-
-Switch tickers by typing a symbol in the header, or clicking a preset like QQQ. The whole dashboard re-points to the new ticker.
-
-Find opportunities across many tickers by clicking **🔍 Screener**, keeping or editing the default list, then clicking "Scan". Results sort by signal strength — click any row to switch the dashboard to that ticker.
-
-Watch a few key symbols using **👀 Watchlist**. Add or remove with the input field plus the ✕ buttons. Click any tile to make that ticker the active one.
-
-Log a trade by clicking **📒 Trade Journal**, filling the form, and submitting. The trade appears in the Open table immediately and is persisted to MongoDB if it's running.
-
-Close a trade by clicking **Close** on its row and entering the exit premium. It moves to the Closed table with the P&L calculated for you.
-
-Reading the chart: green candles are bullish bars, pink are bearish. Cyan / blue / coral lines are EMA 8 / 21 / 50. Dotted lines are pivot S/R levels (white PP, coral R levels, green S levels). A green ▲ below a bar marks a bullish EMA-cross trigger; a pink ▼ above marks bearish.
-
-### End of day
-
-1. Double-click `stop.command` (Mac) or `stop.bat` / `stop.ps1` (Windows).
-2. Wait for "Stopped." and close the terminal window.
-3. Tomorrow morning, double-click `start-docker.command` / `start-local.command` again — same data is still there (Docker mode preserves the MongoDB volume across restarts).
+To clean out disposable junk (caches, editor backups, old token backups, stale
+build output) without touching anything important, run `cleanup.command` (Mac)
+or `cleanup.bat` (Windows). Add `--dry-run` to preview what it would remove.
 
 ---
 
-## 9. Switching data sources (Yahoo ↔ Schwab)
-
-The app uses **Yahoo Finance by default** — free, no signup, ~15-minute delayed.
-
-To switch to **Schwab API** (free, real-time, requires a Schwab brokerage account plus a free developer app):
-
-1. Sign up for an **Individual Developer** account at https://developer.schwab.com.
-2. Create an app — set Callback URL to `https://127.0.0.1`. Wait 1–3 business days for Schwab to approve it.
-3. Copy your App Key and App Secret into `mern/.env`:
-
-   ```env
-   DATA_SOURCE=schwab
-   SCHWAB_API_KEY=...
-   SCHWAB_APP_SECRET=...
-   ```
-
-4. Restart the app: double-click `stop.command` then `start-docker.command` (or your preferred launcher).
-
-> **Status note:** Schwab support in the MERN server is currently stubbed — Yahoo Finance is the actively-supported source. The legacy Python implementation at `legacy-python/` has full Schwab support if you need real-time data today. See [CHANGELOG.md](CHANGELOG.md) for Schwab-in-MERN progress.
-
----
-
-## 10. Common tasks
-
-### Update to the latest version
-
-```bash
-cd bandaru-trade-research
-git pull
-```
-
-Then re-launch via the script. In Docker mode, the launcher uses `--build`, so it picks up code changes automatically. In Local mode, restart the launcher to pick up server changes; Vite hot-reloads the client.
-
-### Wipe local data and start fresh (Docker mode)
-
-```bash
-cd bandaru-trade-research/mern
-docker compose down -v          # -v removes the MongoDB volume
-```
-
-Then re-launch. Trade Journal will be empty.
-
-### Run on a different port (Docker mode)
-
-Edit `mern/docker-compose.yml`:
-
-```yaml
-client:
-  ports:
-    - "8080:80"     # was "3000:80"
-```
-
-Re-launch. Dashboard now at **http://localhost:8080**.
-
-### View live logs
-
-Docker mode:
-
-```bash
-cd bandaru-trade-research/mern
-docker compose logs -f                  # all services
-docker compose logs -f server           # server only
-```
-
-Local mode — Mac:
-
-```bash
-tail -f /tmp/bandaru-server.log
-tail -f /tmp/bandaru-client.log
-```
-
-Local mode — Windows:
-
-```bat
-type %TEMP%\bandaru-server.log
-type %TEMP%\bandaru-client.log
-```
-
-### Check what's running (Docker)
-
-```bash
-cd bandaru-trade-research/mern
-docker compose ps
-```
-
-### Restart just the server after a code change (Docker)
-
-```bash
-docker compose up -d --build server
-```
-
----
-
-## 11. Troubleshooting
-
-| Symptom | Cause + fix |
-|---|---|
-| `docker: command not found` (Docker mode) | Docker Desktop isn't installed. Install from https://docker.com. |
-| "Docker is installed but the daemon isn't running" | Open Docker Desktop, wait for the whale icon to stop animating, then re-run the launcher. |
-| Port 3000 already in use | Something else is on it. Either stop that service, or change the port in `mern/docker-compose.yml` (see "Run on a different port"). |
-| Dashboard shows "Loading…" forever | Server can't reach Yahoo Finance. Check `docker compose logs server` — usually a rate-limit. Wait 60s and refresh. |
-| `npm install` fails (Local mode) | Node version too old. Run `node -v` — needs 18+. Install latest LTS from https://nodejs.org. |
-| Trade Journal disappears between launches | You ran `docker compose down -v` somewhere — the `-v` flag wipes the MongoDB volume. Use plain `docker compose down` (or `stop.command`) to preserve data. |
-| macOS: "cannot be opened because it is from an unidentified developer" | Gatekeeper. Right-click the `.command` script → **Open** → **Open**. Only needed once per script. |
-| Windows: SmartScreen blocks `.ps1` | Click **More info** → **Run anyway**. Or use the matching `.bat`. Or run `powershell -ExecutionPolicy Bypass -File start-docker.ps1`. |
-| Local mode: "Cannot connect to MongoDB" warnings | Expected if no Mongo on :27017 — the Journal is just disabled. To enable it: `docker run -d --name bandaru-mongo -p 27017:27017 mongo:7`. |
-| Schwab "token_invalid" error | Schwab support is stubbed in MERN. Use Yahoo for now, or run the legacy Python version for full Schwab support. |
-| Launcher window closes immediately | Right-click the script → open with a terminal manually so you can read the error, or check the log file paths the script prints. |
-
-For deeper issues, file an issue at https://github.com/bandarusrinivas/bandaru-trade-research/issues with the relevant log output attached (`docker compose logs` for Docker mode, `/tmp/bandaru-*.log` or `%TEMP%\bandaru-*.log` for Local mode).
-
----
-
-*Last updated: v2.0.0 · See [CHANGELOG.md](CHANGELOG.md) for version history.*
+*Bandaru Trade Research is a personal analysis tool. It is not financial
+advice. Day trading 0DTE options carries substantial risk of total loss.
+Verify every signal independently before placing trades.*

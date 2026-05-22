@@ -51,9 +51,10 @@ async function call(endpoint, params) {
     const { data } = await http.get(endpoint, { params });
     return data;
   } catch (e) {
-    // Sidecar returns {error: "..."} with 4xx/5xx; surface a clean message.
-    const msg =
-      e.response?.data?.error
+    // Sidecar returns {error, raw, http_status, http_body, http_url} on 4xx/5xx.
+    // Preserve ALL of that so /api/diagnose can show the actual Schwab response.
+    const body = e.response?.data || {};
+    const msg = body.error
       || (e.response?.status === 503
             ? "Schwab token invalid/expired — re-run auth-schwab.command"
             : null)
@@ -61,6 +62,15 @@ async function call(endpoint, params) {
       || "Schwab sidecar unreachable";
     const err = new Error(msg);
     err.status = e.response?.status || 502;
+    err.detail = {
+      raw_message:    body.raw,
+      schwab_status:  body.http_status,
+      schwab_body:    body.http_body,
+      schwab_url:     body.http_url,
+      sidecar_status: e.response?.status,
+      endpoint,
+      params,
+    };
     throw err;
   }
 }

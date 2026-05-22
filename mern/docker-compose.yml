@@ -44,14 +44,18 @@ services:
     restart: unless-stopped
     profiles: ["schwab"]
     environment:
+      # Fallbacks if env isn't injected; data_api.py also reads /app/.env directly
       SCHWAB_API_KEY: ${SCHWAB_API_KEY:-}
       SCHWAB_APP_SECRET: ${SCHWAB_APP_SECRET:-}
       SCHWAB_CALLBACK_URL: ${SCHWAB_CALLBACK_URL:-https://127.0.0.1}
       SCHWAB_TOKEN_PATH: /tokens/schwab_token.json
       PORT: 5050
     volumes:
-      # Read/write so schwab-py can refresh the token in place
+      # Token file (read/write so schwab-py can refresh in place)
       - ../legacy-python:/tokens
+      # Credentials — mount the project-root .env directly into the container
+      # so load_dotenv() picks it up even when compose is run without --env-file.
+      - ../.env:/app/.env:ro
     networks:
       - bandaru-net
     healthcheck:

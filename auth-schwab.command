@@ -77,17 +77,50 @@ EOF
 
 read -p "Press Return to begin OAuth flow… " _
 
-# Run the interactive setup (uses client_from_manual_flow under the hood)
-python -m src.schwab_setup
+# If the Schwab sidecar container is running, pause it during re-auth so it
+# can't keep serving (or rewrite) the stale token file while we replace it.
+SIDECAR_WAS_RUNNING=0
+if command -v docker >/dev/null 2>&1 \
+   && docker ps --format '{{.Names}}' 2>/dev/null | grep -q '^bandaru-schwab$'; then
+  SIDECAR_WAS_RUNNING=1
+  echo "→ Pausing the Schwab sidecar container during re-auth..."
+  docker stop bandaru-schwab >/dev/null 2>&1 || true
+fi
 
-# Verify the token landed
+# Run the interactive setup. schwab_setup.py does client_from_manual_flow AND
+# then fetches a live SPY quote — so a clean exit means the token really works.
+# Capture the exit code instead of letting `set -e` abort before we can
+# restart the sidecar.
+OAUTH_RC=0
+python -m src.schwab_setup || OAUTH_RC=$?
+
+# Restart the sidecar (if we paused it) no matter what, so a good token gets
+# loaded fresh at boot and a failed run leaves things as they were.
+if [ "$SIDECAR_WAS_RUNNING" = "1" ]; then
+  echo "→ Restarting the Schwab sidecar so it loads the new token..."
+  docker start bandaru-schwab >/dev/null 2>&1 || true
+fi
+
+if [ "$OAUTH_RC" -ne 0 ]; then
+  echo
+  echo "✗ OAuth did NOT complete (exit code $OAUTH_RC). See the errors above."
+  echo "  Most common causes:"
+  echo "    • The redirect URL was pasted incomplete — copy the WHOLE address"
+  echo "      bar from the 'broken' page, starting with https://127.0.0.1/?code="
+  echo "    • The authorization code expired — you have ~30 seconds to paste it"
+  echo "      back. Re-run this script and move quickly."
+  echo "    • Wrong login — sign in with your Schwab BROKERAGE account."
+  exit 1
+fi
+
+# Reaching here means schwab_setup.py fetched a live SPY quote successfully.
 if [ -f "schwab_token.json" ]; then
   echo
-  echo "✓ Token saved to $LEGACY/schwab_token.json"
-  echo "  Next: double-click start-schwab.command to launch the dashboard."
+  echo "✓ Token saved AND verified — Schwab accepted it (SPY price shown above)."
+  echo "  $LEGACY/schwab_token.json"
+  echo "  Good for 7 days. Next: double-click start.command to launch."
 else
   echo
-  echo "✗ OAuth completed but no token file was created."
-  echo "  Check the output above for errors."
+  echo "✗ OAuth ran but no token file was created. Check the output above."
   exit 1
 fi

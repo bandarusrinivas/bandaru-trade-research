@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { BandaruChart } from "../chart/BandaruChart.js";
 import { getCandles } from "../api.js";
 
-export default function ChartAnalysis({ ticker, analysis }) {
+export default function ChartAnalysis({ ticker, analysis, refreshMs = 10000 }) {
   const canvasRef = useRef(null);
   const chartRef = useRef(null);
   const [interval, setInterval_] = useState("5m");
@@ -17,7 +17,7 @@ export default function ChartAnalysis({ ticker, analysis }) {
     }
   }, []);
 
-  // Reload data when ticker / interval / period changes
+  // Reload data when ticker / interval / period / refreshMs changes
   useEffect(() => {
     let cancelled = false;
     const load = () => getCandles(ticker, { interval, period })
@@ -31,9 +31,9 @@ export default function ChartAnalysis({ ticker, analysis }) {
       })
       .catch(console.warn);
     load();
-    const id = window.setInterval(load, 10000);
+    const id = window.setInterval(load, refreshMs);
     return () => { cancelled = true; window.clearInterval(id); };
-  }, [ticker, interval, period, analysis]);
+  }, [ticker, interval, period, analysis, refreshMs]);
 
   // Update candle style live
   useEffect(() => { chartRef.current?.setCandleStyle(candleStyle); }, [candleStyle]);

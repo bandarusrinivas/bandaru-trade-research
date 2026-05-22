@@ -20,6 +20,25 @@ if (typeof yahooFinance.suppressNotices === "function") {
 const CACHE = new Map();           // key -> { value, expiresAt }
 const INFLIGHT = new Map();        // key -> Promise (dedup concurrent callers)
 
+// ---------------------------------------------------------------------------
+// Index-symbol normalization
+// ---------------------------------------------------------------------------
+// The screener watchlist and ticker picker use plain index names (SPX, VIX,
+// XSP). Yahoo serves indices under caret-prefixed tickers, so a raw "VIX"
+// request 404s. Map the common ones onto Yahoo's symbols.
+const YAHOO_SYMBOL_ALIASES = {
+  SPX: "^GSPC",   // S&P 500 index
+  XSP: "^XSP",    // Cboe Mini-SPX index
+  VIX: "^VIX",    // Cboe Volatility Index
+  NDX: "^NDX",    // Nasdaq-100
+  RUT: "^RUT",    // Russell 2000
+  DJI: "^DJI",    // Dow Jones Industrial Average
+};
+function ySym(symbol) {
+  const s = String(symbol || "").toUpperCase().trim();
+  return YAHOO_SYMBOL_ALIASES[s] || symbol;
+}
+
 const TTL = {
   quote:       Number(process.env.YAHOO_CACHE_QUOTE_MS || 5_000),     // 5s
   intraday:    Number(process.env.YAHOO_CACHE_INTRADAY_MS || 15_000), // 15s
@@ -80,7 +99,7 @@ async function memo(key, ttl, fn) {
 export async function getQuote(symbol) {
   return memo(`quote:${symbol}`, TTL.quote, async () => {
     try {
-      const q = await yahooFinance.quote(symbol);
+      const q = await yahooFinance.quote(ySym(symbol));
       return {
         price: q.regularMarketPrice,
         change: q.regularMarketChange,
@@ -108,7 +127,7 @@ export async function getDailyBars(symbol, period = "6mo") {
     };
     const days = periodMap[period] || 180;
     const period1 = new Date(Date.now() - days * 86400000);
-    const result = await yahooFinance.chart(symbol, {
+    const result = await yahooFinance.chart(ySym(symbol), {
       period1,
       interval: "1d",
     });
@@ -130,7 +149,7 @@ export async function getIntradayBars(symbol, interval = "5m", period = "1d") {
     const periodMap = { "1d": 1, "2d": 2, "5d": 5 };
     const days = periodMap[period] || 1;
     const period1 = new Date(Date.now() - days * 86400000);
-    const result = await yahooFinance.chart(symbol, {
+    const result = await yahooFinance.chart(ySym(symbol), {
       period1,
       interval,
     });
@@ -176,7 +195,7 @@ export async function getPreviousDay(symbol) {
 export async function getOptionChain(symbol) {
   return memo(`chain:${symbol}`, TTL.chain, async () => {
     try {
-      const opts = await yahooFinance.options(symbol);
+      const opts = await yahooFinance.options(ySym(symbol));
       if (!opts?.options?.length) return { underlying_price: null, contracts: [] };
       const first = opts.options[0];
       const contracts = [];
@@ -209,6 +228,56 @@ function mapContract(c) {
     iv: c.impliedVolatility ? c.impliedVolatility * 100 : null,
   };
 }
+
+// ---------------------------------------------------------------------------
+// Profile — company info + analyst + earnings + news (always Yahoo, regardless
+// of DATA_SOURCE, since Schwab doesn't expose news/analyst the same way).
+// ---------------------------------------------------------------------------
+export async function getProfile(symbol) {
+  return memo(`profile:${symbol}`, 5 * 60_000, async () => {
+    // Bundle of modules — one quoteSummary call returns most of what we need
+    const modules = [
+      "summaryProfile",            // company description, sector, industry
+      "summaryDetail",             // PE, dividend, 52w range
+      "defaultKeyStatistics",      // beta, EPS, shares outstanding
+      "financialData",             // earnings growth, revenue, target prices
+      "earnings",                  // quarterly EPS actual vs estimate
+      "earningsHistory",           // last 4Q
+      "earningsTrend",             // next-Q + next-year EPS estimates + 5y growth
+      "recommendationTrend",       // analyst counts by month
+      "upgradeDowngradeHistory",   // recent analyst rating changes
+      "calendarEvents",            // next earnings date
+      "price",                     // company name, exchange
+      "incomeStatementHistory",    // annual revenue/profit
+      "incomeStatementHistoryQuarterly",  // quarterly
+    ];
+
+    let summary = {};
+    try {
+      summary = await yahooFinance.quoteSummary(ySym(symbol), { modules });
+    } catch (e) {
+      // Some symbols (indices like ^VIX, ^SPX) don't have a full summary
+      summary = {};
+    }
+
+    // News — separate endpoint
+    let news = [];
+    try {
+      const sr = await yahooFinance.search(symbol, { quotesCount: 0, newsCount: 8 });
+      news = (sr?.news || []).slice(0, 5).map((n) => ({
+        title:     n.title,
+        publisher: n.publisher,
+        url:       n.link || n.url,
+        published: n.providerPublishTime
+                     ? new Date(n.providerPublishTime * 1000).toISOString()
+                     : null,
+      }));
+    } catch { /* tolerate news failure */ }
+
+    return { summary, news };
+  });
+}
+
 
 // Diagnostic — peek at cache state from a route or test
 export function _cacheStats() {

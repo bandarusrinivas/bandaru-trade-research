@@ -9,12 +9,111 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 ## [Unreleased]
 
 ### Planned
-- Schwab REST wrapper in MERN server (no mature Node SDK exists — need OAuth + signed-request adapter)
 - TTM Squeeze pane in the React canvas chart
 - 3D view with day partitions in the React canvas chart
 - WebSocket streaming for sub-second updates
 - Customizable indicator parameters (RSI period, MACD periods, BB bands)
 - Backtesting tab
+
+---
+
+## [2.1.1] — 2026-05-21 — Screener fix + launcher consolidation
+
+### Removed
+- **Launcher sprawl deleted.** `restart-schwab`, `rebuild-all`, `start.ps1` /
+  `stop.ps1`, the whole `scripts/mac/` and `scripts/windows/` folders, the dead
+  `legacy-python/scripts/` folder, and `docs/WINDOWS_INSTALL.md` are gone.
+  Everything they did is now covered by `start.command` / `start.bat`. The root
+  keeps just `start`, `stop`, `auth-schwab`, `cleanup`, `push-to-github`, and
+  `install-windows.bat`.
+
+### Fixed
+- **Screener no longer fails on scan.** It previously fired all 38 watchlist
+  symbols at the data source simultaneously, which got the connection
+  rate-limited (Yahoo `Too Many Requests`) or queued behind the single Schwab
+  sidecar — the whole scan then timed out or returned all-error rows. Scans now
+  run through a bounded-concurrency pool (5 at a time, `SCREENER_CONCURRENCY`).
+- **Index symbols in the watchlist** (`SPX`, `XSP`, `VIX`) now resolve. Yahoo
+  serves indices under caret tickers, so the plain names 404'd; added an alias
+  map (`SPX→^GSPC`, `XSP→^XSP`, `VIX→^VIX`, plus `NDX`/`RUT`/`DJI`).
+- Screener client timeout raised to 90s so a cold first scan isn't cut off.
+- **Schwab launchers no longer die silently when the token ages out.** Every
+  launcher runs `set -e`; the token validator captured `output=$(python3 …)`
+  whose process exits non-zero for a 5+-day-old token — under `set -e` that
+  aborted the *whole script* during preflight, before the re-OAuth prompt ever
+  appeared. `start.command`, `auth-schwab.command`, and `check-schwab-token.sh`
+  now capture those exit codes safely, so an expired token leads to the
+  re-OAuth prompt instead of a silent exit.
+- **Launchers now report Schwab data honestly.** The old end-to-end probe just
+  checked for `"bars"` in a response and declared "real-time data flowing" —
+  but the server silently falls back to Yahoo when the token is dead, so that
+  was a false success. Launchers now hit `/api/diagnose`, which probes the
+  Schwab adapter directly, and print the precise reason (expired token, app not
+  approved, missing scope, sidecar down) when it's actually on Yahoo.
+
+### Changed
+- Screener API response now reports `ok_count` / `error_count` / `concurrency`;
+  the status bar shows `loaded / total` and a clearer timeout message.
+- **`auth-schwab.command` now cycles the Schwab sidecar** — it stops the
+  `bandaru-schwab` container before OAuth and restarts it after, so a freshly
+  minted token is always loaded by the container instead of the stale one
+  lingering in memory. It also reports success only after schwab-py confirms a
+  live quote, so a bad token fails loudly instead of pretending to work.
+- **Launching collapsed to two commands: `start.command` and `stop.command`.**
+  `start.command` is now a single no-menu, do-everything launcher — it checks
+  Docker (and starts Docker Desktop if needed), signs you in to Schwab
+  automatically whenever the token is missing or expired, builds and starts
+  every container, verifies real-time data is flowing, re-authorizes on the
+  spot if Schwab rejects the token, and opens the dashboard. No separate auth
+  step. `start.bat` / `stop.bat` mirror it on Windows.
+- **Profile tab reorganized** into a denser dashboard layout — Key Stats folded
+  into the header as a one-line stat strip, Position Recommendation paired
+  beside Quick Read, and Headlines paired beside About. Fewer stacked cards,
+  everything fits on one screen.
+
+---
+
+## [2.1.0] — 2026-05-19 — Schwab-in-Docker + analytics
+
+### Added
+- **Schwab data in Docker** — new Python sidecar container (`legacy-python/data_api.py`)
+  exposes `/data/*` endpoints; the Express server proxies to it when
+  `DATA_SOURCE=schwab`. `docker-compose.schwab.yml` override + `--profile schwab`.
+- **Stock Profile tab** — short/medium/long-term outlooks, HOLD/TRIM/EXIT/ADD
+  position recommendation, key levels (support/resistance/stop/target), risk
+  factors, company future outlook, earnings, analyst consensus + recent
+  rating changes, 200-word + detailed multi-section summaries.
+- **Option Decay Lab tab** — Black-Scholes premium modeling: premium-vs-price
+  curves across time snapshots, theta-decay-at-spot graph, full Greeks
+  (Δ Γ Θ ν), intrinsic/extrinsic split, price × time premium grid.
+- **ToS-style Screener** — 38-symbol watchlist, dense multi-column grid
+  (Last, Mark, Net Chg, OHLC, Pivots, Trend, RSI, ADX, Volume, RVol, TTM Sq,
+  Breakout), click-to-sort, sticky symbol column.
+- **Refresh interval picker** — 5s / 10s / 30s, persisted, header control.
+- **`/api/diagnose`** — probes each data adapter, returns plain-English
+  recommendation on why data isn't loading.
+- **Token validation** — launchers check the Schwab token age (7-day refresh
+  window) and auto-prompt OAuth when expired.
+- **`restart-schwab.command` / `.bat`** — one-click clean Schwab restart.
+- **Windows install guide + `install-windows.bat`** auto-prereq checker.
+
+### Changed
+- **Project layout** — mode-specific launchers moved to `scripts/mac/` +
+  `scripts/windows/`; root keeps `start` / `stop` / `auth-schwab` /
+  `push-to-github` / `cleanup` / `restart-schwab`.
+- **`start.command`** — interactive menu; auto-detects Schwab credentials and
+  defaults to the Docker + Schwab option.
+- Launchers close stale browser tabs before opening a new one.
+
+### Fixed
+- Yahoo adapter — removed `suppressNotices` call (gone in yahoo-finance2 2.14),
+  pinned to 2.13.x, added TTL cache + retry to stop rate-limit flooding.
+- schwab-py 1.4 — `get_price_history_every_minute` no longer takes a
+  `frequency` kwarg; dispatches to per-interval named methods.
+- Multi-day intraday — sidecar now honors the period parameter.
+- Port cleanup no longer kills Docker's own port-forwarder.
+- `.env` auto-mounted into the Schwab sidecar so credentials load regardless
+  of how `docker compose` is invoked.
 
 ---
 

@@ -27,12 +27,19 @@ async function withFallback(name, ...args) {
   if (SOURCE !== "schwab") return yahoo[name](...args);
   try {
     const result = await schwab[name](...args);
+    if (_lastFallbackReason !== null) {
+      console.log(`[data] Schwab ${name}(${args[0] || ""}) recovered`);
+    }
     _lastFallbackReason = null;
     return result;
   } catch (e) {
-    if (!ALLOW_FALLBACK) throw e;
     _lastFallbackReason = e.message || String(e);
-    console.warn(`[data] Schwab ${name} failed (${_lastFallbackReason}); falling back to Yahoo`);
+    // Loud and structured so the user can find it in docker logs
+    console.error(
+      `[data] ✗ Schwab ${name}(${args[0] || ""}) FAILED: ${_lastFallbackReason}`
+      + (ALLOW_FALLBACK ? "  → falling back to Yahoo" : "  (fallback disabled)")
+    );
+    if (!ALLOW_FALLBACK) throw e;
     return yahoo[name](...args);
   }
 }

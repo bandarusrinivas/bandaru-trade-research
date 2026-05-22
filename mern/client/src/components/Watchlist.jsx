@@ -4,7 +4,7 @@ import { getWatchlist } from "../api.js";
 const DEFAULT = ["SPY", "QQQ", "IWM", "DIA", "^VIX", "VXX",
   "NVDA", "AAPL", "MSFT", "GOOGL", "META", "TSLA", "AMZN", "AMD"];
 
-export default function Watchlist({ onPickTicker }) {
+export default function Watchlist({ onPickTicker, refreshMs = 10000 }) {
   const [symbols, setSymbols] = useState(() => {
     try { return JSON.parse(localStorage.getItem("bandaru_watchlist")) || DEFAULT; }
     catch { return DEFAULT; }
@@ -15,9 +15,9 @@ export default function Watchlist({ onPickTicker }) {
   const load = () => getWatchlist(symbols).then((d) => setQuotes(d.quotes || [])).catch(console.warn);
   useEffect(() => {
     load();
-    const id = setInterval(load, 15000);
+    const id = setInterval(load, refreshMs);
     return () => clearInterval(id);
-  }, [symbols.join(",")]);
+  }, [symbols.join(","), refreshMs]);
   useEffect(() => { localStorage.setItem("bandaru_watchlist", JSON.stringify(symbols)); }, [symbols]);
 
   const onAdd = (e) => {

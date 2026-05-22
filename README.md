@@ -1,6 +1,6 @@
 # Bandaru Trade Research
 
-**Version 2.0.0** · MERN stack · Open source (MIT) · Docker-portable
+**Version 2.1.1** · MERN stack · Open source (MIT) · Docker-portable
 
 Day-trading research dashboard for SPY 0DTE options. Real-time pivots, S/R levels, option-chain analysis, TTM Squeeze, MACD, ADX, Heikin-Ashi candles, stock screener, multi-symbol watchlist, and persistent MongoDB-backed trade journal.
 
@@ -12,35 +12,24 @@ The platform is built on the **MERN stack** (MongoDB + Express + React + Node.js
 
 ### Easiest — double-click `start`
 
-The project root has one launcher per platform that opens an interactive menu and runs the mode you pick.
+Just **two commands**, one per job. No menu, no separate steps.
 
-| Platform | Start | Stop |
+| Platform | Start everything | Stop everything |
 |---|---|---|
 | **macOS** | `start.command` | `stop.command` |
-| **Windows** | `start.bat` (or `start.ps1`) | `stop.bat` (or `stop.ps1`) |
+| **Windows** | `start.bat` | `stop.bat` |
 
-When you run `start`, you'll see:
+`start` does the whole job in one shot: checks Docker (and launches Docker Desktop if it's not running), signs you in to Schwab automatically whenever the token is missing or expired, builds and starts every container, verifies real-time data is flowing, and opens the dashboard at **http://localhost:3000**. `stop` tears it all down.
 
-```
-  1)  Docker            — Mongo + Express + nginx     (Yahoo data)
-  2)  Docker + Schwab   — adds real-time data sidecar (requires token)
-  3)  Local Node        — Express + Vite, no Docker   (Yahoo data)
-  4)  Python (Schwab)   — legacy Flask app            (real-time, no Docker)
-```
-
-Each option delegates to the matching script in `scripts/mac/` or `scripts/windows/` — you can also run those directly if you prefer skipping the menu.
-
-**Common one-off scripts at the root:**
-- `auth-schwab.command` / `.bat` — interactive Schwab OAuth (before option 2 or 4)
+**Other root scripts (optional — you rarely need them):**
+- `auth-schwab.command` / `.bat` — force a fresh Schwab sign-in (`start` runs this for you automatically when needed)
+- `cleanup.command` / `.bat` — delete disposable junk (caches, backups, stale build output)
 - `push-to-github.command` / `.bat` — staged commit + push
-- `cleanup.command` / `.bat` — run once after pulling the new layout to delete the old deprecation stubs
+- `install-windows.bat` — one-time prerequisite installer for Windows
 
-**First-run warnings:**
-- macOS Gatekeeper may block unsigned scripts. Right-click → Open the first time.
-- Windows SmartScreen may warn about `.ps1`. Click "More info" → "Run anyway", or use the `.bat`.
-- If PowerShell blocks execution: `powershell -ExecutionPolicy Bypass -File start.ps1`.
+**First-run note:** macOS Gatekeeper may block unsigned scripts — right-click → **Open** the first time.
 
-> Full step-by-step launch and stop instructions for both Mac and Windows live in [docs/USER_GUIDE.md](docs/USER_GUIDE.md).
+> Full step-by-step instructions for both Mac and Windows, plus a troubleshooting section, live in **[docs/USER_GUIDE.md](docs/USER_GUIDE.md)**.
 
 ### Manual — Docker (any OS)
 
@@ -84,26 +73,27 @@ No Python, no Node, no MongoDB installed on the host — Docker handles every pr
 ```
 bandaru-trade-research/
 ├── README.md, LICENSE, VERSION, .env.example       ← top-level docs + config
-├── start.command  / start.bat  / start.ps1         ← interactive menu (entry point)
-├── stop.command   / stop.bat   / stop.ps1          ← universal stop (all modes)
-├── auth-schwab.command / auth-schwab.bat           ← interactive Schwab OAuth
+├── start.command  / start.bat                      ← launch everything (auth included)
+├── stop.command   / stop.bat                       ← stop everything
+├── auth-schwab.command / auth-schwab.bat           ← Schwab sign-in (start runs it for you)
+├── cleanup.command / cleanup.bat                   ← delete disposable junk
 ├── push-to-github.command / push-to-github.bat     ← dev workflow
-├── cleanup.command / cleanup.bat                   ← run once after migrating layout
+├── install-windows.bat                             ← Windows prerequisite installer
 │
-├── docs/                                           ← USER_GUIDE, BUILD, DEPLOY, etc.
+├── docs/                                           ← USER_GUIDE, CHANGELOG, etc.
 ├── mern/                                           ← MERN application (primary)
 │   ├── docker-compose.yml
 │   ├── server/                                     ← Express API
 │   └── client/                                     ← React + Vite
-├── legacy-python/                                  ← Flask app + Schwab sidecar
-│   ├── app.py, data_api.py, Dockerfile
-│   └── src/clients/                                ← Schwab, Yahoo, TastyTrade, demo
-└── scripts/                                        ← mode-specific launchers
-    ├── mac/        start-docker, start-local, start-schwab, start-docker-schwab (.command)
-    └── windows/    same .bat + .ps1
+├── legacy-python/                                  ← Schwab data sidecar (Flask)
+│   ├── data_api.py, Dockerfile, requirements.txt
+│   └── src/clients/schwab_client.py
+└── scripts/                                        ← internal helpers (sourced by launchers)
+    ├── _shared.sh
+    └── check-schwab-token.sh
 ```
 
-15 visible items at the root — only the universal "verbs" (start / stop / auth / push / cleanup) plus the three folders. Mode-specific launchers live one level deeper under `scripts/`.
+The only two scripts you ever run are **`start`** and **`stop`**. Everything else is either an occasional helper (`auth-schwab`, `cleanup`, `push-to-github`) or an internal building block under `scripts/`.
 
 ---
 

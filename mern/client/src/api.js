@@ -12,7 +12,11 @@ export const getAnalysis  = (ticker)        => api.get("/analysis",  { params: {
 export const getCandles   = (ticker, p)     => api.get("/candles",   { params: { ticker, ...p } }).then((r) => r.data);
 export const getChain     = (ticker)        => api.get("/chain",     { params: { ticker } }).then((r) => r.data);
 export const getWatchlist = (symbols)       => api.get("/watchlist", { params: { symbols: symbols?.join(",") } }).then((r) => r.data);
-export const getScreener  = (symbols)       => api.get("/screener",  { params: { symbols: symbols?.join(",") } }).then((r) => r.data);
+// Screener scans dozens of symbols server-side — give it a generous timeout
+// so a cold first scan (no cache yet) isn't cut off mid-flight.
+export const getScreener  = (symbols)       => api.get("/screener",  { params: { symbols: symbols?.join(",") }, timeout: 90000 }).then((r) => r.data);
+export const getProfile   = (ticker)        => api.get("/profile",   { params: { ticker } }).then((r) => r.data);
+export const getOptionDecay = (params)      => api.get("/option-decay", { params }).then((r) => r.data);
 
 export const listTrades   = (status)        => api.get("/trades",    { params: { status } }).then((r) => r.data);
 export const createTrade  = (body)          => api.post("/trades", body).then((r) => r.data);
