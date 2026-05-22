@@ -19,10 +19,20 @@ Just **two commands**, one per job. No menu, no separate steps.
 | **macOS** | `start.command` | `stop.command` |
 | **Windows** | `start.bat` | `stop.bat` |
 
-`start` does the whole job in one shot: checks Docker (and launches Docker Desktop if it's not running), signs you in to Schwab automatically whenever the token is missing or expired, builds and starts every container, verifies real-time data is flowing, and opens the dashboard at **http://localhost:3000**. `stop` tears it all down.
+`start` does the whole job in one shot: it checks Docker (and launches Docker Desktop if it's not running), looks at your Schwab sign-in, **builds and starts every container, and opens the dashboard** at **http://localhost:3000**. `stop` tears it all down.
+
+**If a Schwab sign-in is needed**, `start` pauses and lets you choose:
+
+```
+  1) Sign in to Schwab now   — real-time data        (recommended)
+  2) Skip the sign-in        — free delayed Yahoo data
+  3) Quit
+```
+
+So one command handles every case: a valid token launches straight into real-time data, an expired token offers a sign-in or a Yahoo fallback, and no Schwab keys at all simply runs on Yahoo.
 
 **Other root scripts (optional — you rarely need them):**
-- `auth-schwab.command` / `.bat` — force a fresh Schwab sign-in (`start` runs this for you automatically when needed)
+- `auth-schwab.command` / `.bat` — force a fresh Schwab sign-in (`start` runs this for you when needed)
 - `cleanup.command` / `.bat` — delete disposable junk (caches, backups, stale build output)
 - `push-to-github.command` / `.bat` — staged commit + push
 - `install-windows.bat` — one-time prerequisite installer for Windows
@@ -31,40 +41,47 @@ Just **two commands**, one per job. No menu, no separate steps.
 
 > Full step-by-step instructions for both Mac and Windows, plus a troubleshooting section, live in **[docs/USER_GUIDE.md](docs/USER_GUIDE.md)**.
 
-### Manual — Docker (any OS)
+### Advanced — bare Docker (Yahoo data only)
+
+`docker compose up` is a plain container command — it **cannot** run the interactive Schwab browser sign-in, so this path always runs on free, ~15-minute-delayed Yahoo data:
 
 ```bash
-git clone https://github.com/bandarusrinivas/bandaru-trade-research.git
 cd bandaru-trade-research/mern
 docker compose up
 ```
 
-Open **http://localhost:3000** in any browser. Done.
-
-No Python, no Node, no MongoDB installed on the host — Docker handles every prerequisite.
+For real-time Schwab data, use `start.command` / `start.bat` instead — that is the one command that handles the sign-in.
 
 ---
 
 ## What you get
 
-### Seven tabs in the dashboard
+### Nine tabs in the dashboard
 
 | Tab | What it does |
 |---|---|
 | **📊 Chart Analysis** | Multi-pane HTML5 canvas chart: price + EMA 8/21/50 + pivot S/R + buy/sell arrows + volume + MACD pane + TTM Squeeze. Heikin-Ashi default. Configurable interval (1m → 1d) and period (1d → 1y). Mouse-wheel zoom, fit-all, manual zoom. |
-| **🚨 Entry / Exit Alerts** | Pivot levels, 0DTE trade suggestions (Bull Call Break / Bear Put Break) with status badges and reasoning |
-| **🎯 Pro Signals** | Stacked EMA, ADX trend strength, MACD, RSI — all daily timeframe |
-| **👀 Watchlist** | Multi-symbol live quotes, click-to-switch ticker, persists across sessions |
-| **🔍 Screener** | Parallel-scan a list of tickers for entry opportunities. Sorted by signal strength. Click any row to switch the dashboard to that ticker. |
+| **🚨 Entry / Exit Alerts** | Pivot levels, 0DTE trade suggestions (Bull Call Break / Bear Put Break) with status badges and reasoning. |
+| **🎯 Pro Signals** | Stacked EMA, ADX trend strength, MACD, RSI — daily timeframe. |
+| **👀 Watchlist** | Multi-symbol live quotes, click-to-switch ticker, persists across sessions. |
+| **🔍 Screener** | ThinkOrSwim-style multi-column grid scanning a 38-symbol watchlist for actionable setups — pivots, trend, RSI, ADX, RVol, TTM Squeeze, breakout, opportunity score. Runs through a bounded-concurrency pool so the data source isn't rate-limited. Click any row to load that ticker. |
 | **📒 Trade Journal** | Log open + closed trades with strike, expiration, P&L. **MongoDB-backed** — survives container restarts. |
-| **⛓ Options Chain** | ±2% strikes around ATM, calls on left, puts on right, with mid/bid/ask/IV/OI/volume |
+| **⛓ Options Chain** | Strikes around ATM, calls on left, puts on right, with mid / bid / ask / IV / OI / volume. |
+| **🏢 Profile** | Company overview in a compact dashboard layout: market cap, P/E, beta, 52-week range, a rules-based ~200-word read, a detailed multi-section analysis, short/medium/long-term outlook, a HOLD / TRIM / EXIT / ADD / AVOID position call, key levels, risk factors, earnings, analyst consensus, latest headlines, and a company future outlook. |
+| **⏳ Option Decay** | Black-Scholes option-pricing lab: a price × time-of-day premium heatmap (8:30 AM → 4:00 PM) with a mouse-following premium tooltip and adjustable size, decay curves, a pure-theta curve, and live Greeks (delta, gamma, theta, vega). |
 
 ### Universal header
 
-- Ticker picker — any stock or index (SPY, QQQ, IWM, NVDA, TSLA, AAPL preset + custom)
-- Master Verdict (BULLISH / BEARISH) with action button (GO LONG / GO SHORT)
-- Live SPY price + change %
-- Auto-refresh every 10 seconds
+- Ticker picker — any stock or index (SPY, QQQ, IWM, NVDA, TSLA, AAPL preset + custom).
+- Master Verdict (BULLISH / BEARISH) with action button (GO LONG / GO SHORT).
+- Live price + change %.
+- Auto-refresh interval selector — 5 s / 10 s / 30 s.
+
+### Data sources, one command
+
+- **Real-time** via the Schwab API (Python sidecar container) — `start` signs you in.
+- **Free fallback** via Yahoo Finance (~15-min delayed) — used automatically if Schwab is unavailable, with an in-memory cache + retry/backoff so it isn't rate-limited.
+- Index symbols (`SPX`, `XSP`, `VIX`, …) resolve correctly on both sources.
 
 ---
 
@@ -112,10 +129,12 @@ The only two scripts you ever run are **`start`** and **`stop`**. Everything els
                   │ docker network
 ┌─────────────────▼──────────────────────┐
 │  Express (server, Node 20)             │
-│  /api/version  /api/analysis           │
-│  /api/candles  /api/chain              │
+│  /api/version   /api/analysis          │
+│  /api/candles   /api/chain             │
 │  /api/watchlist /api/screener          │
-│  /api/trades   (MongoDB-backed)        │
+│  /api/profile   /api/option-decay      │
+│  /api/diagnose  (data-source health)   │
+│  /api/trades    (MongoDB-backed)       │
 └─────────────────┬──────────────────────┘
                   │
 ┌─────────────────▼──────────────────────┐

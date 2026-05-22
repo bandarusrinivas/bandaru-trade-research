@@ -60,12 +60,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   lingering in memory. It also reports success only after schwab-py confirms a
   live quote, so a bad token fails loudly instead of pretending to work.
 - **Launching collapsed to two commands: `start.command` and `stop.command`.**
-  `start.command` is now a single no-menu, do-everything launcher — it checks
-  Docker (and starts Docker Desktop if needed), signs you in to Schwab
-  automatically whenever the token is missing or expired, builds and starts
-  every container, verifies real-time data is flowing, re-authorizes on the
-  spot if Schwab rejects the token, and opens the dashboard. No separate auth
-  step. `start.bat` / `stop.bat` mirror it on Windows.
+  `start.command` is a single do-everything launcher — it checks Docker (and
+  starts Docker Desktop if needed), builds and starts every container, verifies
+  real-time data is flowing, and opens the dashboard. `start.bat` / `stop.bat`
+  mirror it on Windows.
+- **`start` now offers a data-source choice** when the Schwab token is missing
+  or expired: (1) sign in to Schwab now for real-time data, (2) skip and run on
+  free delayed Yahoo data, or (3) quit. A valid token launches straight into
+  real-time data with no prompt; with no Schwab keys at all it goes straight to
+  Yahoo. Plain `docker compose up` remains a Yahoo-only path — it can't run the
+  interactive Schwab sign-in, so use `start` for real-time data.
 - **Profile tab reorganized** into a denser dashboard layout — Key Stats folded
   into the header as a one-line stat strip, Position Recommendation paired
   beside Quick Read, and Headlines paired beside About. Fewer stacked cards,

@@ -123,25 +123,37 @@ Make sure **Docker Desktop is running** first (whale icon solid). Then:
 - **macOS** — double-click **`start.command`**
 - **Windows** — double-click **`start.bat`**
 
-A terminal window opens and walks through seven steps:
+A terminal window opens and walks through six steps:
 
 1. **Checking Docker** — if Docker Desktop isn't running, `start` tries to
    launch it for you and waits up to a minute.
-2. **Checking Schwab credentials** — confirms `.env` has your keys.
-3. **Checking your Schwab sign-in** — if the token is missing or expired,
-   `start` runs the Schwab sign-in automatically (see [section 5](#5-the-schwab-sign-in)).
-4. **Starting all containers** — Mongo, the Schwab data service, the Express
-   API, and the web server. The first run builds the images and can take
-   **5–10 minutes**. Later runs take under a minute.
-5. **Waiting for the dashboard** to come online.
-6. **Checking real-time Schwab data** — if Schwab rejects the token, `start`
-   re-runs the sign-in on the spot and checks again.
-7. **Opening the dashboard** in your browser at **http://localhost:3000**.
+2. **Choosing the data source** — `start` looks at your Schwab sign-in:
+   - **Token still valid** → it goes straight to real-time Schwab data, no prompt.
+   - **Token missing or expired** → it pauses and asks you to choose:
+
+     ```
+       1) Sign in to Schwab now    — real-time data        (recommended)
+       2) Skip the sign-in         — free delayed Yahoo data
+       3) Quit
+     ```
+
+     Pick **1** to sign in now (see [section 5](#5-the-schwab-sign-in)), **2**
+     to run on free delayed data, or **3** to cancel. Pressing Return with no
+     choice picks 1.
+   - **No Schwab keys in `.env`** → it runs on Yahoo data automatically.
+3. **Starting all containers** — Mongo, the Express API, the web server, and
+   (in Schwab mode) the Schwab data service. The first run builds the images
+   and can take **5–10 minutes**. Later runs take under a minute.
+4. **Waiting for the dashboard** to come online.
+5. **Checking real-time Schwab data** (Schwab mode only) — if Schwab rejects
+   the token, `start` offers to re-sign-in on the spot and checks again.
+6. **Opening the dashboard** in your browser at **http://localhost:3000**.
 
 When it finishes you'll see either:
 
 - `✓ Live — real-time Schwab data` — everything is working, or
-- `! ... delayed Yahoo data` — the app is up but couldn't reach Schwab; the
+- `✓ ... free delayed Yahoo data` — you chose Yahoo, or
+- `! ... delayed Yahoo fallback` — Schwab was chosen but unreachable; the
   message tells you why. See [Troubleshooting](#8-troubleshooting).
 
 Leave the terminal window open while you use the app — closing it is harmless,
