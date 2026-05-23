@@ -1,6 +1,6 @@
 import { Router } from "express";
 import * as data from "../services/data.js";
-import { calculatePivots } from "../services/indicators.js";
+import { calculatePivots, calculateCPR } from "../services/indicators.js";
 
 const router = Router();
 
@@ -10,10 +10,11 @@ router.get("/", async (req, res) => {
   const period = (req.query.period || "1d").toString();
   try {
     const bars = await data.getIntradayBars(ticker, interval, period === "3d" || period === "2d" ? "5d" : period);
-    // Pivots from prev daily bar
+    // Pivots + CPR from prev daily bar
     const daily = await data.getPreviousDay(ticker);
     const pivots = calculatePivots(daily.high, daily.low, daily.close);
-    res.json({ ticker, interval, period, bars, pivots });
+    const cpr = calculateCPR(daily.high, daily.low, daily.close);
+    res.json({ ticker, interval, period, bars, pivots, cpr });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }

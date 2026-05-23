@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { getChain } from "../api.js";
+import OIFlow from "./OIFlow.jsx";
 
 export default function OptionsChain({ ticker }) {
   const [chain, setChain] = useState([]);
@@ -26,7 +27,9 @@ export default function OptionsChain({ ticker }) {
   const rows = Array.from(byStrike.entries()).sort((a, b) => a[0] - b[0]);
 
   return (
-    <div className="card">
+    <div className="chain-page">
+      <OIFlow ticker={ticker} />
+      <div className="card">
       <h2>0DTE Options Chain (±2% strikes)</h2>
       <p className="muted">Current price: <strong>${price?.toFixed(2) ?? "—"}</strong></p>
       <table className="chain-table">
@@ -64,6 +67,7 @@ export default function OptionsChain({ ticker }) {
         </tbody>
       </table>
       {!rows.length && <div className="empty">No 0DTE chain data — try later in the trading day.</div>}
+      </div>
     </div>
   );
 }

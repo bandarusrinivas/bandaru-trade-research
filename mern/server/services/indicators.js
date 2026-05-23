@@ -171,6 +171,48 @@ export function calculatePivots(high, low, close) {
   };
 }
 
+// ---------- Central Pivot Range (CPR) ----------
+// CPR is a three-line band derived from the prior session's H/L/C:
+//   Pivot (P)        = (H + L + C) / 3
+//   Bottom Central   = (H + L) / 2
+//   Top Central (TC) = 2P - BC   (mirror of BC across P)
+// The two "central" lines are ordered into top/bottom because TC can sit
+// below BC when the close finishes mid-range.
+//
+// Width carries the signal traders use it for: a NARROW CPR (small width
+// relative to price) tends to precede a trending day, a WIDE CPR a
+// rangebound / sideways day. The narrow/wide buckets here are a rough
+// heuristic, not a guarantee.
+export function calculateCPR(high, low, close) {
+  if ([high, low, close].some((v) => v == null || !isFinite(v))) {
+    return null;
+  }
+  const round = (n) => Math.round(n * 100) / 100;
+  const P  = (high + low + close) / 3;
+  const BC = (high + low) / 2;
+  const TC = 2 * P - BC;
+  const top = Math.max(TC, BC);
+  const bottom = Math.min(TC, BC);
+  const width = top - bottom;
+  const widthPct = close ? (width / close) * 100 : 0;
+  let type;
+  if (widthPct < 0.10)      type = "narrow";
+  else if (widthPct < 0.25) type = "moderate";
+  else                      type = "wide";
+  const bias = type === "narrow" ? "trending day likely"
+             : type === "wide"   ? "rangebound day likely"
+             : "mixed — no strong CPR bias";
+  return {
+    pivot:      round(P),
+    tc:         round(top),
+    bc:         round(bottom),
+    width:      round(width),
+    width_pct:  Math.round(widthPct * 1000) / 1000,
+    type,
+    bias,
+  };
+}
+
 // ---------- TTM Squeeze ----------
 export function ttmSqueeze(highs, lows, closes, period = 20, bbMult = 2, kcMult = 1.5) {
   if (closes.length < period + 1) return { in_squeeze: null, momentum: null, fired: null };

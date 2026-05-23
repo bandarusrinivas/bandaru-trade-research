@@ -17,6 +17,11 @@ import tradesRoute from "./routes/trades.js";
 import diagnoseRoute from "./routes/diagnose.js";
 import profileRoute from "./routes/profile.js";
 import optionDecayRoute from "./routes/optionDecay.js";
+import gammaRoute from "./routes/gamma.js";
+import pivotStopsRoute from "./routes/pivotStops.js";
+import oiFlowRoute from "./routes/oiFlow.js";
+import backtestRoute from "./routes/backtest.js";
+import premarketRoute from "./routes/premarket.js";
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -37,6 +42,11 @@ app.use("/api/trades", tradesRoute);    // MongoDB-backed trade journal
 app.use("/api/diagnose", diagnoseRoute); // probes each adapter, reports pass/fail
 app.use("/api/profile", profileRoute);   // full stock profile + 200-word summary
 app.use("/api/option-decay", optionDecayRoute); // Black-Scholes premium decay grid
+app.use("/api/gamma", gammaRoute);        // dealer gamma-exposure (GEX) estimate
+app.use("/api/pivot-stops", pivotStopsRoute); // pivot stop ladder + level validation
+app.use("/api/oi-flow", oiFlowRoute);     // day-over-day open-interest change
+app.use("/api/backtest", backtestRoute);  // technical-signal strategy backtester
+app.use("/api/premarket", premarketRoute); // unusual-volume scanner
 
 // Health check (also used by docker-compose healthcheck)
 app.get("/", (_req, res) => res.json({ name: "Bandaru Trade Research", status: "ok" }));

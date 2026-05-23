@@ -6,11 +6,11 @@ const router = Router();
 router.get("/", async (req, res) => {
   const ticker = (req.query.ticker || "SPY").toString().toUpperCase();
   try {
-    const data = await data.getOptionChain(ticker);
+    const chain = await data.getOptionChain(ticker);
     res.json({
       ticker,
-      current_price: data.underlying_price,
-      chain: data.contracts,
+      current_price: chain.underlying_price,
+      chain: chain.contracts,
     });
   } catch (e) {
     res.status(500).json({ error: e.message });

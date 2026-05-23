@@ -15,6 +15,15 @@ const fmtAxis = (v) =>
 const fmtPlain = (v) =>
   `$${Math.round(v).toLocaleString("en-US")}`;
 
+// Standard normal CDF — Abramowitz & Stegun 7.1.26 (matches the server engine)
+function normCdf(x) {
+  const t = 1 / (1 + 0.2316419 * Math.abs(x));
+  const d = 0.3989422804014327 * Math.exp(-(x * x) / 2);
+  const p = d * t * (0.319381530 + t * (-0.356563782 + t * (1.781477937
+              + t * (-1.821255978 + t * 1.330274429))));
+  return x >= 0 ? 1 - p : p;
+}
+
 // ── Heat color scale: premium fraction 0..1 → color ──
 // dark navy → deep blue → teal → gold → orange-red
 const HEAT_STOPS = [
@@ -436,6 +445,25 @@ export default function OptionDecay({ ticker }) {
     };
   }, [sim, simPrice, contractsN, entryNum]);
 
+  // Probability of profit — lognormal model of where the underlying lands by
+  // expiration (current spot, IV, time left). Independent of the slider.
+  const prob = useMemo(() => {
+    if (!data) return null;
+    const r = 0.05;
+    const isCall = data.type !== "put";
+    const S = data.spot;
+    const sigma = (data.iv || 0) / 100;
+    const T = (data.total_hours_left || 0) / (365 * 24);
+    const breakeven = isCall ? data.strike + entryNum : data.strike - entryNum;
+    const reach = (target) => {
+      if (target <= 0) return isCall ? 1 : 0;
+      if (T <= 0 || sigma <= 0) return (isCall ? S > target : S < target) ? 1 : 0;
+      const d2 = (Math.log(S / target) + (r - (sigma * sigma) / 2) * T) / (sigma * Math.sqrt(T));
+      return isCall ? normCdf(d2) : normCdf(-d2);
+    };
+    return { pop: reach(breakeven), itm: reach(data.strike), breakeven };
+  }, [data, entryNum]);
+
   const bigText = !calc ? "—"
     : mode === "%"
       ? (calc.basis > 0.5
@@ -543,6 +571,40 @@ export default function OptionDecay({ ticker }) {
               max={sim.price_axis[sim.price_axis.length - 1]}
               value={simPrice}
               onChange={setSimPrice} />
+
+            {prob && (
+              <div className="sim-prob-row">
+                <div className="sim-prob">
+                  <div className="sim-prob-head">
+                    <span>Probability of Profit</span>
+                    <b className={prob.pop >= 0.5 ? "pos" : "neg"}>
+                      {(prob.pop * 100).toFixed(0)}%
+                    </b>
+                  </div>
+                  <div className="sim-prob-bar">
+                    <span className={prob.pop >= 0.5 ? "good" : "warn"}
+                          style={{ width: `${Math.round(prob.pop * 100)}%` }} />
+                  </div>
+                  <div className="sim-prob-note">
+                    modeled chance the trade is profitable at expiration · break-even
+                    ${prob.breakeven.toFixed(2)}
+                  </div>
+                </div>
+                <div className="sim-prob">
+                  <div className="sim-prob-head">
+                    <span>Finishes In-The-Money</span>
+                    <b>{(prob.itm * 100).toFixed(0)}%</b>
+                  </div>
+                  <div className="sim-prob-bar">
+                    <span className="neutral"
+                          style={{ width: `${Math.round(prob.itm * 100)}%` }} />
+                  </div>
+                  <div className="sim-prob-note">
+                    chance the option expires past the ${data.strike} strike
+                  </div>
+                </div>
+              </div>
+            )}
 
             <div className="sim-foot">
               <span className="muted">

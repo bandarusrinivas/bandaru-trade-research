@@ -1,328 +1,286 @@
 # Bandaru Trade Research — User Guide
 
-**Version 2.1.1**
+How to use the dashboard once it is installed. For installation and
+prerequisites, see [INSTALLATION.md](INSTALLATION.md).
 
-A complete, step-by-step manual for installing, running, and troubleshooting
-Bandaru Trade Research on **macOS** and **Windows**.
-
-The app runs as a small set of Docker containers. You control all of it with
-just **two scripts**:
-
-| | Start everything | Stop everything |
-|---|---|---|
-| **macOS** | `start.command` | `stop.command` |
-| **Windows** | `start.bat` | `stop.bat` |
-
-`start` does the entire job in one double-click — it checks Docker, signs you
-in to Schwab when needed, builds and launches every container, and opens the
-dashboard. There is no menu and no separate sign-in step.
+> **Educational tool — not financial advice.** Every signal, score, and
+> projection is a research aid. 0DTE options can lose 100% of their value.
+> Verify everything independently before trading.
 
 ---
 
 ## Contents
 
-1. [What you need](#1-what-you-need)
-2. [First-time setup — macOS](#2-first-time-setup--macos)
-3. [First-time setup — Windows](#3-first-time-setup--windows)
-4. [Starting the app (every day)](#4-starting-the-app-every-day)
-5. [The Schwab sign-in](#5-the-schwab-sign-in)
-6. [Stopping the app](#6-stopping-the-app)
-7. [A quick tour of the dashboard](#7-a-quick-tour-of-the-dashboard)
-8. [Troubleshooting](#8-troubleshooting)
-9. [Updating the app](#9-updating-the-app)
+1. [Starting & stopping](#1-starting--stopping)
+2. [The dashboard header](#2-the-dashboard-header)
+3. [Tabs](#3-tabs)
+   - [Chart Analysis](#31-chart-analysis) · [Entry / Exit Alerts](#32-entry--exit-alerts) · [Pro Signals](#33-pro-signals) · [Watchlist](#34-watchlist) · [Screener](#35-screener) · [Pre-Market](#36-pre-market) · [Profile](#37-profile) · [Options Chain](#38-options-chain) · [Option Decay](#39-option-decay) · [Backtest](#310-backtest) · [Trade Journal](#311-trade-journal)
+4. [Data sources](#4-data-sources)
+5. [Honest limitations](#5-honest-limitations)
+6. [Glossary](#6-glossary)
 
 ---
 
-## 1. What you need
+## 1. Starting & stopping
 
-Both platforms need the same things:
+| | Start | Stop |
+|---|---|---|
+| **macOS** | double-click `start.command` | double-click `stop.command` |
+| **Windows** | double-click `start.bat` | double-click `stop.bat` |
 
-**Docker Desktop** — free software that runs the app's containers. It bundles
-everything else the app needs (Node.js, Python, MongoDB), so you do **not**
-install those yourself.
+`start` checks Docker, builds/starts the containers, and opens the dashboard at
+**<http://localhost:3000>**. The first run takes several minutes; later runs
+take seconds. Your trade journal is preserved between runs.
 
-**A Schwab brokerage account + a free Schwab developer app** — required only
-for *real-time* data. Without it the app still runs fine on free Yahoo Finance
-data, which is delayed roughly 15 minutes.
-
-**Hardware** — any Mac or PC from the last several years with at least 8 GB of
-RAM. The running app uses about 1 GB of RAM and 2 GB of disk.
-
-Your Schwab API keys live in a file named `.env` in the project folder. It must
-contain two lines:
-
-```
-SCHWAB_API_KEY=your_key_here
-SCHWAB_APP_SECRET=your_secret_here
-```
-
-If you do not have a Schwab developer app yet, create one (free) at
-**https://developer.schwab.com** — add the "Market Data Production" product,
-set the callback URL to `https://127.0.0.1`, and copy the App Key and Secret
-into `.env`.
+If `start` needs a Schwab sign-in, follow the prompts — full detail is in
+[INSTALLATION.md § 6](INSTALLATION.md#6-schwab-real-time-data-optional).
 
 ---
 
-## 2. First-time setup — macOS
+## 2. The dashboard header
 
-**Step 1 — Install Docker Desktop.**
-Download it from **https://www.docker.com/products/docker-desktop**, open the
-`.dmg`, and drag Docker to Applications. Launch Docker Desktop once and wait
-until the whale icon in the menu bar stops animating — that means the engine
-is running.
+The header is always visible, above the tabs:
 
-**Step 2 — Put the project folder somewhere stable.**
-Keep the `bandaru-trade-research` folder in your home folder or Documents — not
-in Downloads or the Trash. Moving it later is fine; just don't delete it.
-
-**Step 3 — Confirm your Schwab keys.**
-Open the `.env` file in the project folder with TextEdit and check that
-`SCHWAB_API_KEY` and `SCHWAB_APP_SECRET` both have values after the `=`.
-
-**Step 4 — First launch (clears Apple's Gatekeeper warning).**
-The very first time, macOS blocks scripts from unidentified developers. Instead
-of double-clicking, **right-click `start.command` → Open**, then click **Open**
-in the dialog. You only do this once; after that a normal double-click works.
-
-`start.command` takes over from here — see [section 4](#4-starting-the-app-every-day).
+- **Ticker picker** — type any stock or index symbol (SPY, QQQ, IWM, NVDA,
+  TSLA, AAPL, …) and press Return. Index symbols like `SPX`, `XSP`, `VIX`
+  resolve correctly. The chosen ticker drives every tab and is remembered
+  between sessions.
+- **Master Verdict** — a `BULLISH` / `BEARISH` badge with an action button
+  (`GO LONG` / `GO SHORT`), summarising the current technical picture.
+- **Live price & change %** — updates on the auto-refresh interval.
+- **Refresh interval** — `5s` / `10s` / `30s`. Slower intervals are gentler on
+  the data feed.
 
 ---
 
-## 3. First-time setup — Windows
+## 3. Tabs
 
-**Step 1 — Install prerequisites.**
-The easiest path: double-click **`install-windows.bat`**. It checks for Docker
-Desktop and Python and points you to the downloads you still need. You can also
-install manually:
+### 3.1 Chart Analysis
 
-- **Docker Desktop** — https://www.docker.com/products/docker-desktop
-  Docker on Windows needs the **WSL 2** backend; the Docker installer enables
-  it for you and may ask for one reboot.
-- **Python 3.10 or newer** — https://www.python.org/downloads/
-  On the installer's first screen, tick **"Add Python to PATH"**.
+A multi-pane price chart with stacked indicator panels:
 
-**Step 2 — Launch Docker Desktop** and wait for the whale icon in the system
-tray to go solid (engine running).
+- **Price pane** — candlesticks, EMA 8 / 21 / 50, pivot support/resistance
+  lines, and green/red arrows where EMA 8 crosses EMA 21.
+- **Volume**, **MACD (12, 26, 9)**, and **TTM Squeeze** panes below.
 
-**Step 3 — Put the project folder somewhere stable** — for example
-`C:\Users\<you>\bandaru-trade-research`. Avoid Downloads.
+**Controls:**
 
-**Step 4 — Confirm your Schwab keys** in the `.env` file (open with Notepad) —
-`SCHWAB_API_KEY` and `SCHWAB_APP_SECRET` must both have values.
+- **Interval** — `1m` to `1d`. **Period** — `1d` to `1y`.
+- **Candle style** — `Regular` (default) or `Heikin-Ashi` (smoothed, trend-friendly).
+- **CPR on/off** — toggles the Central Pivot Range overlay (see below).
+- **Zoom** — `−` / `+` buttons, the fit button, or the mouse wheel.
 
-**Step 5 — First launch.**
-Double-click **`start.bat`**. If Windows SmartScreen shows a blue warning,
-click **More info → Run anyway**. You only do this once.
+**CPR (Central Pivot Range).** When CPR is on, a shaded band shows three levels
+from the prior session: **TC** (top central), **Pivot**, and **BC** (bottom
+central). A readout under the chart labels the band **narrow**, **moderate**,
+or **wide**: a *narrow* CPR often precedes a trending day, a *wide* CPR a
+rangebound day. Treat it as a rough bias, not a guarantee.
+
+**Pivot Stop Ladder & Support Validation** (panel below the chart):
+
+- **Current zone** — which pivot band price is sitting in right now.
+- **Long stop / Short stop** — a suggested stop, anchored to the pivot just
+  past your position with an ATR-based buffer, plus the risk %.
+- **Trailing-stop ladder** — shows how the stop ratchets up as price clears
+  each pivot.
+- **Level reliability** — over the last ~60 sessions, how often each pivot was
+  *tested* and *held* (a hold-rate bar), and how far price typically pierced
+  the level before reversing — a guide for sizing your stop buffer. These are
+  historical tendencies, not promises.
+
+### 3.2 Entry / Exit Alerts
+
+Today's pivot levels plus rules-based 0DTE trade suggestions — "Bull Call
+Break" / "Bear Put Break" — each with an entry trigger, profit target, stop,
+and the reasoning behind it.
+
+### 3.3 Pro Signals
+
+A daily-timeframe read of trend quality: stacked EMA alignment, ADX trend
+strength, MACD, and RSI.
+
+### 3.4 Watchlist
+
+Live quotes for several symbols at once. Click any tile to load that symbol
+into every tab. The list persists between sessions.
+
+### 3.5 Screener
+
+A ThinkOrSwim-style multi-column grid that scans a 38-symbol watchlist for
+actionable setups.
+
+- **Window toggle** — scan on the `15m` or `daily` timeframe.
+- **Columns** — last/mark, pivots and pivot zone, trend, RSI, ADX,
+  **MTF** (multi-timeframe agreement between the 15-minute and daily trend,
+  shown as ▲▼ glyphs), **IV%** (ATM implied volatility), **IV/HV** (are
+  options rich or cheap vs realized volatility), **γ Wall** (heaviest call-OI
+  strike — a gamma-squeeze proxy), TTM Squeeze, relative volume, breakout, and
+  an **opportunity score**.
+- **Filters** — narrow to MTF-aligned names, gamma-flagged names, and more.
+- Click any row to load that ticker.
+
+> MTF, IV%, IV/HV and γ Wall are modelled estimates, not exchange IV Rank or
+> true dealer-gamma. The screener notes this inline.
+
+### 3.6 Pre-Market
+
+An **unusual-volume scanner** for finding option-trade candidates before or
+during the session. It scans ~40 liquid, heavily-optioned large-caps and ranks
+them by a blend of **gap %** and **relative volume**.
+
+- Each row shows price, gap %, RVOL (with its basis), volume vs average, day
+  range, a **bias** (calls / puts / neutral), the ATM strike, and a score.
+- Rows flagged **⚡ unusual** had a notable gap or volume surge.
+- **Unusual only** filter and **Re-scan** button. Click a ticker to load it.
+
+> Pre-market volume baselines are limited by the data feed — the gap is the
+> most reliable pre-open signal and is weighted accordingly.
+
+### 3.7 Profile
+
+A compact company dashboard for the current ticker: market cap, P/E, beta,
+52-week range, a rules-based ~200-word read, a detailed multi-section analysis,
+short/medium/long-term outlook, a HOLD / TRIM / EXIT / ADD / AVOID position
+call, key levels, risk factors, earnings history, analyst consensus, and
+latest headlines.
+
+**Gamma Exposure (GEX)** panel:
+
+- **Total net GEX** and the **volatility regime** — *positive gamma* means
+  dealers dampen moves (pinning, mean-reversion); *negative gamma* means
+  dealers amplify moves (trendier, larger swings).
+- **Zero-gamma (flip)** estimate, **call wall**, and **put wall**.
+- A **net-GEX-by-strike** bar chart.
+
+> GEX uses the standard naive convention (calls positive, puts negative) on the
+> near-term expiration chain. It is a modelling estimate of the volatility
+> regime — not measured dealer positioning.
+
+### 3.8 Options Chain
+
+Strikes around at-the-money, calls on the left and puts on the right, with mid
+/ bid / ask / IV / open interest / volume.
+
+**Open Interest Flow** panel:
+
+- The day-over-day change in **call and put open interest**, with the strikes
+  that gained the most OI listed first.
+- A green highlight marks **bullish accumulation** — call OI rising while
+  price rose.
+
+> There is no historical option-price feed, so OI history is built by
+> snapshotting the chain once per day. On the first day you see a "baseline
+> captured" message; the day-over-day comparison appears the next session.
+
+### 3.9 Option Decay
+
+A Black-Scholes "Simulated Returns" lab for a single option contract:
+
+- Pick the **contract** (type, strike, DTE) — the header shows it.
+- A big **profit/loss** number for the modelled trade, switchable between $ and %.
+- A **decay chart** from *Now* to *expiration*.
+- An **underlying-price slider** — drag it to see the premium and P&L at any
+  price.
+- Live **Greeks** (delta, gamma, theta, vega).
+- **Probability of Profit** and **Finishes In-The-Money** estimates.
+- A **Heatmap** toggle for the classic price × time premium grid.
+
+### 3.10 Backtest
+
+Replays a trading strategy over historical data to check whether the process
+holds up. Two modes, switchable at the top right:
+
+**📈 Equity mode** — long-only share trades.
+
+- Pick a **signal** (EMA cross, RSI reversal, MACD, TTM squeeze, pivot
+  breakout) and a **period** (1y / 2y / 5y).
+- Results: total return vs buy-and-hold, CAGR, win rate, profit factor, max
+  drawdown, an equity curve, and a full trade list.
+
+**🎲 Options mode** — modelled call/put trades, to validate specific strikes.
+
+- **Signal** — the entry trigger (bullish → buys a call, bearish → buys a put).
+- **Side** — Calls + Puts, Calls only, or Puts only.
+- **DTE** — 0DTE, 1, 3, 7, 14, or 30 days to expiration.
+- **Strike** — a moneyness selector from −2 ITM to +5 OTM, so you can validate
+  exactly which strikes work.
+- **Exit rule** — premium **Target / Stop** (with presets like +50% / −50%),
+  opposite **Signal**, or hold to **Expiration**.
+- **Lookback** — 1, 2, or 3 months.
+- Results: option strategy return vs underlying buy-and-hold, win rate, profit
+  factor, max drawdown, **calls vs puts broken out separately**, an equity
+  curve, and a trade log showing each trade's side, strike, DTE, modelled IV,
+  entry/exit premium, days held, return %, and P&L.
+
+> **The option backtest is modelled.** No feed provides historical option
+> prices, so every premium is reconstructed with Black-Scholes from the
+> underlying's real historical price and its trailing realized volatility. It
+> captures leverage, theta decay, and convexity correctly, but it is an
+> estimate of how the process would have performed — not tick-for-tick real
+> fills. Spreads, slippage, and commissions are not modelled.
+
+### 3.11 Trade Journal
+
+Log your real trades — type, strike, expiration, entry/exit price, P&L, notes.
+Entries are stored in MongoDB and **survive container restarts**.
 
 ---
 
-## 4. Starting the app (every day)
+## 4. Data sources
 
-Make sure **Docker Desktop is running** first (whale icon solid). Then:
+| Source | Cost | Latency | When it is used |
+|---|---|---|---|
+| **Yahoo Finance** | Free | ~15 min delayed | Default; also the automatic fallback |
+| **Schwab API** | Free | Real-time | When `DATA_SOURCE=schwab` and a valid token exists |
 
-- **macOS** — double-click **`start.command`**
-- **Windows** — double-click **`start.bat`**
-
-A terminal window opens and walks through six steps:
-
-1. **Checking Docker** — if Docker Desktop isn't running, `start` tries to
-   launch it for you and waits up to a minute.
-2. **Choosing the data source** — `start` looks at your Schwab sign-in:
-   - **Token still valid** → it goes straight to real-time Schwab data, no prompt.
-   - **Token missing or expired** → it pauses and asks you to choose:
-
-     ```
-       1) Sign in to Schwab now    — real-time data        (recommended)
-       2) Skip the sign-in         — free delayed Yahoo data
-       3) Quit
-     ```
-
-     Pick **1** to sign in now (see [section 5](#5-the-schwab-sign-in)), **2**
-     to run on free delayed data, or **3** to cancel. Pressing Return with no
-     choice picks 1.
-   - **No Schwab keys in `.env`** → it runs on Yahoo data automatically.
-3. **Starting all containers** — Mongo, the Express API, the web server, and
-   (in Schwab mode) the Schwab data service. The first run builds the images
-   and can take **5–10 minutes**. Later runs take under a minute.
-4. **Waiting for the dashboard** to come online.
-5. **Checking real-time Schwab data** (Schwab mode only) — if Schwab rejects
-   the token, `start` offers to re-sign-in on the spot and checks again.
-6. **Opening the dashboard** in your browser at **http://localhost:3000**.
-
-When it finishes you'll see either:
-
-- `✓ Live — real-time Schwab data` — everything is working, or
-- `✓ ... free delayed Yahoo data` — you chose Yahoo, or
-- `! ... delayed Yahoo fallback` — Schwab was chosen but unreachable; the
-  message tells you why. See [Troubleshooting](#8-troubleshooting).
-
-Leave the terminal window open while you use the app — closing it is harmless,
-but it shows useful status.
+If Schwab is selected but its token is invalid or expired, the app
+automatically falls back to Yahoo so the dashboard never goes dark. Check the
+active source any time at
+<http://localhost:4000/api/diagnose?ticker=SPY>. To set up Schwab, see
+[INSTALLATION.md § 6](INSTALLATION.md#6-schwab-real-time-data-optional).
 
 ---
 
-## 5. The Schwab sign-in
+## 5. Honest limitations
 
-Schwab's security tokens **expire every 7 days**, so roughly once a week `start`
-will pause to sign you in again. This is normal and not a bug. When it happens:
+The platform is built to *not* overstate what it knows. Keep these in mind:
 
-1. A browser window opens to the Schwab login page.
-2. Sign in with your **Schwab brokerage account** (the one you trade with — not
-   the developer portal login).
-3. Approve the **"Bandaru Trade Research"** app on the consent screen.
-4. Schwab redirects to an address starting with `https://127.0.0.1/?code=...`.
-   **The page will look broken** — "this site can't be reached" or a security
-   warning. **That is expected.** Schwab has no real website at that address;
-   the part that matters is the URL itself.
-5. **Copy the entire address bar** — the whole thing, starting with
-   `https://127.0.0.1/?code=` and including everything after it.
-6. Switch back to the terminal window, **paste the URL**, and press Return.
-7. The script exchanges the code for a token, fetches a live SPY price to
-   confirm it works, and continues starting the app.
-
-**You have about 30 seconds** to paste the URL back before the code expires, so
-move promptly. If it times out, just run `start` again.
+- **Delayed data on Yahoo.** Quotes are ~15 minutes behind unless Schwab
+  real-time is connected.
+- **GEX, MTF, IV%, IV/HV, γ Wall** are modelled estimates, not exchange-grade
+  IV Rank or measured dealer-gamma positioning.
+- **OI Flow has no history on day one** — it accrues going forward and cannot
+  be backfilled.
+- **The option backtest is modelled** with Black-Scholes (see § 3.10) — it does
+  not replay real historical option fills, and excludes spreads, slippage, and
+  commissions.
+- **Pivot/CPR level reliability** reflects past tendencies, not future
+  guarantees.
+- Premium projections use simplified pricing math and are not a promise of P&L.
 
 ---
 
-## 6. Stopping the app
+## 6. Glossary
 
-- **macOS** — double-click **`stop.command`**
-- **Windows** — double-click **`stop.bat`**
-
-This shuts down every container, frees the network ports, and closes the
-dashboard browser tabs. Your **trade journal is preserved** — it lives in a
-MongoDB volume that survives stops and restarts. Tomorrow, just run `start`
-again and your data is still there.
-
----
-
-## 7. A quick tour of the dashboard
-
-The dashboard opens at **http://localhost:3000** with a ticker picker in the
-header and these tabs:
-
-- **Chart Analysis** — candlestick chart with EMA 8/21/50, pivot support and
-  resistance, volume, MACD, and TTM Squeeze. Mouse-wheel to zoom.
-- **Entry / Exit Alerts** — pivot levels and 0DTE trade suggestions with status
-  badges.
-- **Pro Signals** — stacked EMA, ADX trend strength, MACD, and RSI.
-- **Watchlist** — live quotes for several symbols; click one to switch tickers.
-- **Screener** — scans a list of tickers for actionable setups; click any row
-  to load that ticker.
-- **Trade Journal** — log open and closed trades with P&L; stored in MongoDB.
-- **Options Chain** — calls and puts around the at-the-money strike.
-- **Profile** — company overview, analyst view, earnings, news, and a
-  short/long-term outlook.
-- **Option Decay** — a heatmap of how an option's premium changes with stock
-  price and time decay.
-
-Switch the active symbol any time with the ticker picker in the header.
-
----
-
-## 8. Troubleshooting
-
-Start here for the quick fix, then read the detailed notes below.
-
-| Symptom | Quick fix |
+| Term | Meaning |
 |---|---|
-| `start` won't open — macOS says "unidentified developer" | Right-click `start.command` → **Open** → **Open**. One time only. |
-| Windows SmartScreen warning | Click **More info → Run anyway**. One time only. |
-| `start` says Docker isn't running | Open **Docker Desktop**, wait for the whale icon to go solid, run `start` again. |
-| Dashboard shows nothing / "can't connect" | The containers are still starting. Wait 30–60 seconds and refresh the browser. |
-| Dashboard works but data looks delayed / `! Yahoo data` | The Schwab token was rejected. See **"Schwab data isn't loading"** below. |
-| Schwab sign-in: "site can't be reached" after login | Expected — copy the whole URL and paste it into the terminal. |
-| Schwab sign-in fails / "code expired" | Run `start` again and paste the redirect URL faster (within ~30 seconds). |
-| Screener is empty or every row errors | The data source is rate-limited. Wait a minute and click **Scan** again. |
-| "Port already in use" | Run `stop`, then `start` again. |
-| First launch is taking many minutes | Normal — the first build is 5–10 minutes. Later runs are fast. |
-
-### Docker isn't running
-
-`start` needs Docker Desktop running before it can do anything. Open Docker
-Desktop and wait until the whale icon (menu bar on Mac, system tray on Windows)
-is **solid, not animating**. On Windows, if Docker complains about WSL, open a
-terminal and run `wsl --update`, then restart Docker Desktop.
-
-### Schwab data isn't loading
-
-The dashboard always works — if Schwab is unreachable it automatically falls
-back to delayed Yahoo data. When you want real-time Schwab data back, work
-through this in order:
-
-1. **Check the exact reason.** Open this address in your browser:
-   **http://localhost:3000/api/diagnose?ticker=SPY**
-   It reports precisely what's wrong — expired token, app not approved, missing
-   data permission, or the data service being unreachable.
-
-2. **If it says the token is expired or rejected** — re-run the sign-in.
-   Double-click `auth-schwab.command` (Mac) or `auth-schwab.bat` (Windows),
-   complete the browser steps, and wait for `✓ Token saved AND verified`. Then
-   run `start` again. Remember: Schwab tokens last only 7 days, so this is a
-   routine weekly step.
-
-3. **If you just re-authed and it's *still* rejected** — the running container
-   may be holding the old token. Run `stop`, then `start` — a fresh start
-   forces the container to load the new token from disk.
-
-4. **If a brand-new token is still rejected** — the problem is on Schwab's
-   side, not the app's. Sign in at **https://developer.schwab.com**, open your
-   app, and confirm it is approved ("Ready for use") and has the **Market Data
-   Production** product enabled. A token can't work until the app does.
-
-### The Screener shows errors or no rows
-
-The screener scans dozens of symbols at once. If the data provider is
-temporarily rate-limiting your connection, some rows show errors. Wait about a
-minute and click **Scan** again — results are cached for 5 minutes, so the
-second scan is fast and usually clean. A cold first scan can take 10–15 seconds.
-
-### The dashboard won't open in the browser
-
-Give it time on the first run — building the containers takes several minutes.
-If `http://localhost:3000` still won't load after that, check the terminal
-window `start` opened for error messages, or view the container logs:
-
-```
-cd mern
-docker compose logs -f
-```
-
-(Press Ctrl+C to stop watching the logs.)
-
-### A specific tab shows an error
-
-If one tab misbehaves after an update, the browser may be caching old files.
-Do a hard refresh: **Cmd+Shift+R** (Mac) or **Ctrl+Shift+R** (Windows). If it
-persists, run `stop` then `start` to rebuild with the latest code.
-
-### Starting completely fresh
-
-To wipe everything **including your trade journal** and rebuild from scratch:
-
-```
-cd mern
-docker compose --profile schwab down -v
-```
-
-The `-v` deletes the database volume — only do this if you truly want to erase
-your saved trades. Then run `start` again.
+| **0DTE** | An option expiring the same day it is traded. |
+| **Pivots** | Floor-trader support/resistance levels (PP, R1–R3, S1–S3) from the prior session's high/low/close. |
+| **CPR** | Central Pivot Range — the Pivot plus the TC/BC band; its width hints at trending vs rangebound days. |
+| **EMA** | Exponential Moving Average — a trend line that weights recent prices more heavily. |
+| **MACD** | Momentum indicator built from the gap between two EMAs. |
+| **RSI** | Relative Strength Index (0–100) — gauges overbought (>70) / oversold (<30). |
+| **ADX** | Average Directional Index — measures *trend strength* (not direction). |
+| **TTM Squeeze** | Flags when volatility compresses (a squeeze) and "fires" on release. |
+| **ATR** | Average True Range — typical price movement per bar; used to size stops. |
+| **IV / HV** | Implied vs Historical (realized) Volatility — IV/HV > 1 means options look rich. |
+| **GEX** | Gamma Exposure — an estimate of how option dealer hedging dampens or amplifies moves. |
+| **Open Interest** | The number of option contracts currently held open at a strike. |
+| **RVOL** | Relative Volume — today's volume compared to a normal day. |
+| **Greeks** | Delta, gamma, theta, vega — an option's sensitivities to price, time, and volatility. |
+| **MTF** | Multi-Timeframe — whether the short and long timeframes agree on direction. |
 
 ---
 
-## 9. Updating the app
-
-When you get new code (a download or `git pull`), simply run `start` again.
-It rebuilds any containers whose code changed and recreates them, so the latest
-version is always what launches. Your trade journal is preserved.
-
-To clean out disposable junk (caches, editor backups, old token backups, stale
-build output) without touching anything important, run `cleanup.command` (Mac)
-or `cleanup.bat` (Windows). Add `--dry-run` to preview what it would remove.
-
----
-
-*Bandaru Trade Research is a personal analysis tool. It is not financial
-advice. Day trading 0DTE options carries substantial risk of total loss.
-Verify every signal independently before placing trades.*
+*For installation, prerequisites, and troubleshooting see
+[INSTALLATION.md](INSTALLATION.md). Educational use only — not financial advice.*

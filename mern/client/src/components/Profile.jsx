@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { getProfile } from "../api.js";
+import GammaExposure from "./GammaExposure.jsx";
 
 function fmtPrice(v) { return v == null ? "—" : `$${v.toFixed(2)}`; }
 function fmtPct(v)   { return v == null ? "—" : `${v >= 0 ? "+" : ""}${v.toFixed(2)}%`; }
@@ -261,6 +262,9 @@ export default function Profile({ ticker }) {
         </div>
       </div>
       </div>{/* end profile-grid-three */}
+
+      {/* ── Gamma Exposure (options positioning) ── */}
+      <GammaExposure ticker={data.ticker} />
 
       {/* ── Earnings + Analyst ── */}
       <div className="profile-grid-two">

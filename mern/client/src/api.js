@@ -14,9 +14,16 @@ export const getChain     = (ticker)        => api.get("/chain",     { params: {
 export const getWatchlist = (symbols)       => api.get("/watchlist", { params: { symbols: symbols?.join(",") } }).then((r) => r.data);
 // Screener scans dozens of symbols server-side — give it a generous timeout
 // so a cold first scan (no cache yet) isn't cut off mid-flight.
-export const getScreener  = (symbols)       => api.get("/screener",  { params: { symbols: symbols?.join(",") }, timeout: 90000 }).then((r) => r.data);
+export const getScreener  = (symbols, timeframe) => api.get("/screener", { params: { symbols: symbols?.join(","), timeframe }, timeout: 90000 }).then((r) => r.data);
 export const getProfile   = (ticker)        => api.get("/profile",   { params: { ticker } }).then((r) => r.data);
 export const getOptionDecay = (params)      => api.get("/option-decay", { params }).then((r) => r.data);
+export const getGamma     = (ticker)        => api.get("/gamma",     { params: { ticker } }).then((r) => r.data);
+export const getPivotStops = (ticker)       => api.get("/pivot-stops", { params: { ticker } }).then((r) => r.data);
+export const getOIFlow    = (ticker)        => api.get("/oi-flow",   { params: { ticker } }).then((r) => r.data);
+export const getBacktest  = (params) =>
+  api.get("/backtest", { params, timeout: 60000 }).then((r) => r.data);
+export const getPremarket = (symbols)       =>
+  api.get("/premarket", { params: { symbols: symbols?.join(",") }, timeout: 120000 }).then((r) => r.data);
 
 export const listTrades   = (status)        => api.get("/trades",    { params: { status } }).then((r) => r.data);
 export const createTrade  = (body)          => api.post("/trades", body).then((r) => r.data);

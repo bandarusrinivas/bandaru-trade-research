@@ -39,7 +39,11 @@ So one command handles every case: a valid token launches straight into real-tim
 
 **First-run note:** macOS Gatekeeper may block unsigned scripts — right-click → **Open** the first time.
 
-> Full step-by-step instructions for both Mac and Windows, plus a troubleshooting section, live in **[docs/USER_GUIDE.md](docs/USER_GUIDE.md)**.
+> **New here?** **[docs/INSTALLATION.md](docs/INSTALLATION.md)** has the full
+> prerequisites and step-by-step setup for both Mac and Windows — Homebrew,
+> Docker Desktop, Git, Python — plus Schwab setup and a troubleshooting
+> section. **[docs/USER_GUIDE.md](docs/USER_GUIDE.md)** covers how to use every
+> tab once it's running.
 
 ### Advanced — bare Docker (Yahoo data only)
 

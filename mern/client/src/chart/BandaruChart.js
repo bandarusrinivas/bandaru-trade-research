@@ -5,6 +5,7 @@ const COLORS = {
   grid: "#2a313a", axis: "#97a1ab",
   bull: "#26d96e", bear: "#ff7a8c",
   pivotPP: "#ffffff", pivotR: "#ff7a8c", pivotS: "#26d96e",
+  cprBand: "rgba(124,154,255,0.14)", cprEdge: "#7c9aff", cprPivot: "#c7a3ff",
   ema8: "#00d4ff", ema21: "#58a6ff", ema50: "#ff7a8c",
   macdLine: "#58a6ff", macdSignal: "#ff8c00",
   macdHistBull: "rgba(38,217,110,0.7)", macdHistBear: "rgba(255,122,140,0.7)",
@@ -63,7 +64,9 @@ export class BandaruChart {
     this.ctx = canvas.getContext("2d");
     this.bars = [];
     this.pivots = null;
-    this.candleStyle = "heikin";  // regular | heikin
+    this.cpr = null;
+    this.showCpr = true;
+    this.candleStyle = "regular";  // regular | heikin
     this.viewStart = 0;
     this.viewSlots = null;
     this._setupHiDPI();
@@ -83,9 +86,10 @@ export class BandaruChart {
     this.h = rect.height;
   }
 
-  setData({ bars, pivots, interval, period }) {
+  setData({ bars, pivots, cpr, interval, period }) {
     this.bars = bars || [];
     this.pivots = pivots || null;
+    if (cpr !== undefined) this.cpr = cpr || null;
     this.interval = interval || "5m";
     this.period = period || "1d";
     this.viewStart = 0; this.viewSlots = null;
@@ -98,6 +102,11 @@ export class BandaruChart {
       this.candleStyle = style;
       this.draw();
     }
+  }
+
+  setShowCpr(on) {
+    this.showCpr = !!on;
+    this.draw();
   }
 
   zoomBy(factor) {
@@ -149,6 +158,12 @@ export class BandaruChart {
         if (v < lo) lo = v; if (v > hi) hi = v;
       }
     }
+    if (this.showCpr && this.cpr) {
+      for (const v of [this.cpr.tc, this.cpr.bc, this.cpr.pivot]) {
+        if (v != null && v < lo) lo = v;
+        if (v != null && v > hi) hi = v;
+      }
+    }
     const pad = (hi - lo) * 0.04 || 1;
     lo -= pad; hi += pad;
     const yPrice = (p) => priceH * (1 - (p - lo) / (hi - lo));
@@ -167,6 +182,45 @@ export class BandaruChart {
       const p = hi - ((hi - lo) / 6) * i;
       c.beginPath(); c.moveTo(0, y); c.lineTo(priceW, y); c.stroke();
       c.fillText(p.toFixed(2), priceW + 4, y + 4);
+    }
+
+    // ---- CPR band (Central Pivot Range) ----
+    if (this.showCpr && this.cpr && this.cpr.tc != null && this.cpr.bc != null) {
+      const yTC = yPrice(this.cpr.tc);
+      const yBC = yPrice(this.cpr.bc);
+      const yP  = yPrice(this.cpr.pivot);
+      const bandTop = Math.min(yTC, yBC);
+      const bandH = Math.max(1, Math.abs(yBC - yTC));
+      c.fillStyle = COLORS.cprBand;
+      c.fillRect(0, bandTop, priceW, bandH);
+      c.setLineDash([2, 3]); c.lineWidth = 1;
+      c.strokeStyle = COLORS.cprEdge;
+      for (const y of [yTC, yBC]) {
+        if (y < -2 || y > priceH + 2) continue;
+        c.beginPath(); c.moveTo(0, y); c.lineTo(priceW, y); c.stroke();
+      }
+      c.setLineDash([]);
+      // central pivot — solid
+      if (yP >= -2 && yP <= priceH + 2) {
+        c.strokeStyle = COLORS.cprPivot; c.lineWidth = 1.4;
+        c.beginPath(); c.moveTo(0, yP); c.lineTo(priceW, yP); c.stroke();
+      }
+      // edge labels
+      c.font = "bold 9px -apple-system, sans-serif";
+      for (const [lab, val, y, col] of [
+        ["TC", this.cpr.tc, yTC, COLORS.cprEdge],
+        ["P",  this.cpr.pivot, yP, COLORS.cprPivot],
+        ["BC", this.cpr.bc, yBC, COLORS.cprEdge],
+      ]) {
+        if (y < -2 || y > priceH + 2) continue;
+        const text = `${lab} ${val.toFixed(2)}`;
+        const tw = c.measureText(text).width + 8;
+        c.fillStyle = col;
+        c.fillRect(priceW - tw - 2, y - 8, tw, 15);
+        c.fillStyle = "#0d1117";
+        c.fillText(text, priceW - tw + 2, y + 3);
+      }
+      c.font = "10px -apple-system, sans-serif";
     }
 
     // ---- Pivot lines ----

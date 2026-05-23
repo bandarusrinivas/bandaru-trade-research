@@ -9,6 +9,8 @@ import TradeJournal from "./components/TradeJournal.jsx";
 import OptionsChain from "./components/OptionsChain.jsx";
 import Profile from "./components/Profile.jsx";
 import OptionDecay from "./components/OptionDecay.jsx";
+import PreMarket from "./components/PreMarket.jsx";
+import Backtest from "./components/Backtest.jsx";
 import { getAnalysis, getVersion } from "./api.js";
 
 const TABS = [
@@ -17,9 +19,11 @@ const TABS = [
   { id: "pro",       label: "🎯 Pro Signals" },
   { id: "watchlist", label: "👀 Watchlist" },
   { id: "screener",  label: "🔍 Screener" },
+  { id: "premarket", label: "🌅 Pre-Market" },
   { id: "profile",   label: "📈 Profile" },
   { id: "chain",     label: "⛓ Options Chain" },
   { id: "decay",     label: "📉 Option Decay" },
+  { id: "backtest",  label: "🧪 Backtest" },
   { id: "journal",   label: "📒 Trade Journal" },
 ];
 
@@ -66,9 +70,11 @@ export default function App() {
         {tab === "pro"       && <ProSignals analysis={analysis} />}
         {tab === "watchlist" && <Watchlist onPickTicker={setTicker} refreshMs={refreshMs} />}
         {tab === "screener"  && <Screener onPickTicker={setTicker} />}
+        {tab === "premarket" && <PreMarket onPickTicker={setTicker} />}
         {tab === "profile"   && <Profile ticker={ticker} />}
         {tab === "chain"     && <OptionsChain ticker={ticker} />}
         {tab === "decay"     && <OptionDecay ticker={ticker} />}
+        {tab === "backtest"  && <Backtest ticker={ticker} />}
         {tab === "journal"   && <TradeJournal />}
       </main>
       <footer className="footer">
