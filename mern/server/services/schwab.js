@@ -18,13 +18,20 @@ const http = axios.create({
 const CACHE = new Map();
 const INFLIGHT = new Map();
 
+// Evict expired entries every 5 min so the Map can't grow without bound across
+// a long-running server process. Unref'd so it never holds the process open.
+const _sweep = setInterval(() => {
+  const now = Date.now();
+  for (const [k, v] of CACHE) if (v.expiresAt <= now) CACHE.delete(k);
+}, 5 * 60_000);
+if (typeof _sweep.unref === "function") _sweep.unref();
+
 const TTL = {
   quote:    Number(process.env.SCHWAB_CACHE_QUOTE_MS    || 3_000),     // 3s — Schwab is real-time
   intraday: Number(process.env.SCHWAB_CACHE_INTRADAY_MS || 10_000),    // 10s
   daily:    Number(process.env.SCHWAB_CACHE_DAILY_MS    || 300_000),   // 5min
   prevDay:  Number(process.env.SCHWAB_CACHE_PREVDAY_MS  || 600_000),   // 10min
   chain:    Number(process.env.SCHWAB_CACHE_CHAIN_MS    || 15_000),    // 15s
-  movers:   Number(process.env.SCHWAB_CACHE_MOVERS_MS   || 60_000),    // 60s
 };
 
 async function memo(key, ttl, fn) {
@@ -101,14 +108,6 @@ export async function getPreviousDay(symbol) {
 export async function getOptionChain(symbol) {
   return memo(`schwab:chain:${symbol}`, TTL.chain,
     () => call("/data/chain", { ticker: symbol }));
-}
-
-// Top market movers for an index ($SPX, $COMPX, $DJI, NYSE, NASDAQ).
-// Schwab-only — there is no Yahoo equivalent, so the News route calls this
-// directly (best-effort) rather than through the data dispatcher.
-export async function getMovers(index = "$SPX") {
-  return memo(`schwab:movers:${index}`, TTL.movers,
-    () => call("/data/movers", { index }));
 }
 
 // Health probe so the route layer can fall back to Yahoo if Schwab is down.

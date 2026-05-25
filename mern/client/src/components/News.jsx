@@ -14,6 +14,7 @@ function SourceBadge({ source }) {
   const cls = source === "Google News" ? "news-src-google"
             : source === "Finnhub" ? "news-src-finnhub"
             : source === "MarketWatch" ? "news-src-marketwatch"
+            : source === "Benzinga" ? "news-src-benzinga"
             : "news-src-yahoo";
   return <span className={`news-src ${cls}`}>{source}</span>;
 }
@@ -95,7 +96,7 @@ export default function News() {
 
         {error && <p className="err">News error: {error}</p>}
         {loading && !data && (
-          <p className="muted">Gathering headlines from Finnhub, Google News, Yahoo and MarketWatch…</p>
+          <p className="muted">Gathering headlines from Finnhub, Benzinga, Google News, Yahoo and MarketWatch…</p>
         )}
 
         {data && (
@@ -111,10 +112,11 @@ export default function News() {
             {/* ── 2. Stock Market Feed ── */}
             <h4 className="news-section">📊 Stock Market Feed</h4>
             <p className="muted small news-feed-sub">
-              Merged from Finnhub, Google News, Yahoo Finance and MarketWatch.
+              Merged from Finnhub, Benzinga, Google News, Yahoo Finance and MarketWatch.
               {data.stock_sources ? (
                 <span className="news-feed-counts">
                   {" "}Finnhub {data.stock_sources.finnhub} ·
+                  Benzinga {data.stock_sources.benzinga ?? 0} ·
                   MarketWatch {data.stock_sources.marketwatch} ·
                   Google {data.stock_sources.google} ·
                   Yahoo {data.stock_sources.yahoo}

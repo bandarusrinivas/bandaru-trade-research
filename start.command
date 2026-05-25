@@ -140,12 +140,20 @@ step "3. Starting the containers ($MODE data)"
 )
 ok "Containers started"
 
-# ─────────────────────── 4. Wait for the server ────────────────────
+# ─────────────────── 4. Wait for the server AND the UI ─────────────
+# The browser opens $URL — the UI on :3000. Wait for BOTH the API and the
+# UI container, otherwise the page can open before nginx is ready and show
+# an empty screen with no data.
 step "4. Waiting for the dashboard to come online"
-if wait_for_url "http://localhost:4000/api/version" 90; then
-  ok "Server is up"
+if wait_for_url "http://localhost:4000/api/version" 120; then
+  ok "API server is up"
 else
-  warn "Server is slow to start — check:  ( cd mern && docker compose logs -f )"
+  warn "API server is slow to start — check:  ( cd mern && docker compose logs -f )"
+fi
+if wait_for_url "$URL" 60; then
+  ok "Dashboard UI is up"
+else
+  warn "Dashboard UI is slow to start — give it a few seconds, then refresh."
 fi
 
 # ─────────────────────── 5. Verify Schwab data ─────────────────────

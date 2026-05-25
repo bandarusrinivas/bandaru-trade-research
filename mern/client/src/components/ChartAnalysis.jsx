@@ -14,13 +14,17 @@ export default function ChartAnalysis({ ticker, analysis, refreshMs = 10000 }) {
     () => localStorage.getItem("bandaru_show_cpr") !== "false");
   const [cpr, setCpr] = useState(null);
 
-  // Init chart once
+  // Init chart once; tear it down on unmount so its DOM listener doesn't leak.
   useEffect(() => {
     if (canvasRef.current && !chartRef.current) {
       chartRef.current = new BandaruChart(canvasRef.current);
       chartRef.current.setCandleStyle(candleStyle);
       chartRef.current.setShowCpr(showCpr);
     }
+    return () => {
+      chartRef.current?.destroy?.();
+      chartRef.current = null;
+    };
   }, []);
 
   // Reload data when ticker / interval / period / refreshMs changes

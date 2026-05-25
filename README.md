@@ -1,8 +1,8 @@
 # Bandaru Trade Research
 
-**Version 2.1.1** · MERN stack · Open source (MIT) · Docker-portable
+**Version 2.2.0** · MERN stack · Open source (MIT) · Docker-portable
 
-Day-trading research dashboard for SPY 0DTE options. Real-time pivots, S/R levels, option-chain analysis, TTM Squeeze, MACD, ADX, Heikin-Ashi candles, stock screener, multi-symbol watchlist, and persistent MongoDB-backed trade journal.
+Day-trading research dashboard for SPY 0DTE options. Real-time pivots, S/R levels, option-chain analysis, dealer gamma-exposure (GEX), MACD, ADX, Heikin-Ashi candles, a stock screener, a pre-market scanner, an aggregated market-news feed, an option-strategy backtester, a multi-symbol watchlist, and a persistent MongoDB-backed trade journal.
 
 The platform is built on the **MERN stack** (MongoDB + Express + React + Node.js) and shipped as a **Docker Compose** application — runs identically on macOS, Windows, Linux, or any cloud.
 
@@ -60,19 +60,23 @@ For real-time Schwab data, use `start.command` / `start.bat` instead — that is
 
 ## What you get
 
-### Nine tabs in the dashboard
+### Thirteen tabs in the dashboard
 
 | Tab | What it does |
 |---|---|
-| **📊 Chart Analysis** | Multi-pane HTML5 canvas chart: price + EMA 8/21/50 + pivot S/R + buy/sell arrows + volume + MACD pane + TTM Squeeze. Heikin-Ashi default. Configurable interval (1m → 1d) and period (1d → 1y). Mouse-wheel zoom, fit-all, manual zoom. |
-| **🚨 Entry / Exit Alerts** | Pivot levels, 0DTE trade suggestions (Bull Call Break / Bear Put Break) with status badges and reasoning. |
+| **📊 Chart Analysis** | Multi-pane HTML5 canvas chart: price + EMA 8/21/50 + pivot S/R + CPR band + buy/sell arrows + volume + MACD pane. Regular or Heikin-Ashi candles. Configurable interval (1m → 1d) and period (1d → 1y). Mouse-wheel zoom, fit-all, manual zoom. |
+| **🚨 Entry / Exit Alerts** | Pivot levels, 0DTE trade suggestions (Bull Call Break / Bear Put Break) with status badges and reasoning, plus projected next-day and next-week support/resistance levels. |
 | **🎯 Pro Signals** | Stacked EMA, ADX trend strength, MACD, RSI — daily timeframe. |
+| **🧲 GEX Dashboard** | Dealer gamma-exposure dashboard — gamma flip level, call/put walls and intraday positioning. Replays the prior trading session when the market is closed. |
 | **👀 Watchlist** | Multi-symbol live quotes, click-to-switch ticker, persists across sessions. |
-| **🔍 Screener** | ThinkOrSwim-style multi-column grid scanning a 38-symbol watchlist for actionable setups — pivots, trend, RSI, ADX, RVol, TTM Squeeze, breakout, opportunity score. Runs through a bounded-concurrency pool so the data source isn't rate-limited. Click any row to load that ticker. |
-| **📒 Trade Journal** | Log open + closed trades with strike, expiration, P&L. **MongoDB-backed** — survives container restarts. |
+| **🔍 Screener** | ThinkOrSwim-style multi-column grid. A drop-down universe picker (top US large-caps + major indexes) feeds setups — pivots, trend, RSI, ADX, RVol, breakout, opportunity score — with click-to-filter column headers. Runs through a bounded-concurrency pool so the data source isn't rate-limited. |
+| **🌅 Pre-Market** | Unusual-volume scanner for pre-market movers, with drop-down column filters. |
+| **📰 News** | Aggregated market news — breaking headlines, a multi-source stock feed (Finnhub, Benzinga, Google News, Yahoo Finance, MarketWatch), international stock-index levels, and global market headlines. |
+| **📈 Profile** | Company overview in a compact dashboard layout: market cap, P/E, beta, 52-week range, a rules-based ~200-word read, a detailed multi-section analysis, short/medium/long-term outlook, a HOLD / TRIM / EXIT / ADD / AVOID position call, key levels, risk factors, earnings, analyst consensus, latest headlines, and a company future outlook. |
 | **⛓ Options Chain** | Strikes around ATM, calls on left, puts on right, with mid / bid / ask / IV / OI / volume. |
-| **🏢 Profile** | Company overview in a compact dashboard layout: market cap, P/E, beta, 52-week range, a rules-based ~200-word read, a detailed multi-section analysis, short/medium/long-term outlook, a HOLD / TRIM / EXIT / ADD / AVOID position call, key levels, risk factors, earnings, analyst consensus, latest headlines, and a company future outlook. |
-| **⏳ Option Decay** | Black-Scholes option-pricing lab: a price × time-of-day premium heatmap (8:30 AM → 4:00 PM) with a mouse-following premium tooltip and adjustable size, decay curves, a pure-theta curve, and live Greeks (delta, gamma, theta, vega). |
+| **📉 Option Decay** | Black-Scholes option-pricing lab: a price × time-of-day premium heatmap (8:30 AM → 4:00 PM) with a mouse-following premium tooltip and adjustable size, decay curves, a pure-theta curve, and live Greeks (delta, gamma, theta, vega). |
+| **🧪 Backtest** | Strategy Lab — backtest single- and multi-leg option strategies (the input fields adapt per strategy) with Black-Scholes modeled premiums. |
+| **📒 Trade Journal** | Log open + closed trades with strike, expiration, P&L. **MongoDB-backed** — survives container restarts. |
 
 ### Universal header
 
@@ -84,7 +88,9 @@ For real-time Schwab data, use `start.command` / `start.bat` instead — that is
 ### Data sources, one command
 
 - **Real-time** via the Schwab API (Python sidecar container) — `start` signs you in.
-- **Free fallback** via Yahoo Finance (~15-min delayed) — used automatically if Schwab is unavailable, with an in-memory cache + retry/backoff so it isn't rate-limited.
+- **Free fallback** via Yahoo Finance (~15-min delayed) — used automatically if Schwab is unavailable or its token is dead, with an in-memory cache + retry/backoff so it isn't rate-limited. A circuit breaker skips Schwab after repeated failures so the dashboard keeps loading fast on Yahoo data instead of stalling.
+- When the dashboard is running on delayed Yahoo data it shows a **caution banner** under the header, so you always know which data you're looking at.
+- The News tab aggregates headlines from Google News, Yahoo Finance, MarketWatch, Finnhub and Benzinga.
 - Index symbols (`SPX`, `XSP`, `VIX`, …) resolve correctly on both sources.
 
 ---
@@ -209,14 +215,14 @@ bandaru-trade-research/
 │   ├── .env.example
 │   ├── server/                    # Express + indicators (ported math)
 │   │   ├── Dockerfile, package.json, server.js
-│   │   ├── routes/                # 7 endpoint files
-│   │   ├── services/              # Indicators, Yahoo, analysis
-│   │   └── models/Trade.js        # Mongoose schema
+│   │   ├── routes/                # 18 endpoint files
+│   │   ├── services/              # Indicators, Yahoo, Schwab, analysis
+│   │   └── models/                # Trade + OI-snapshot Mongoose schemas
 │   └── client/                    # React + Vite
 │       ├── Dockerfile, package.json, vite.config.js
 │       ├── nginx.conf
 │       └── src/
-│           ├── App.jsx            # 7 tabs + ticker picker + auto-refresh
+│           ├── App.jsx            # 13 tabs + ticker picker + auto-refresh
 │           ├── api.js             # Axios client
 │           ├── styles.css
 │           ├── chart/BandaruChart.js  # Multi-pane canvas chart

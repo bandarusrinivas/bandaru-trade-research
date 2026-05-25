@@ -81,6 +81,8 @@ package-lock.json.backup
 .nuxt/
 .cache/
 .vite/
+vite.config.js.timestamp-*
+vite.config.*.timestamp-*
 dist/
 build/
 

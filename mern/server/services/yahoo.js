@@ -20,6 +20,14 @@ if (typeof yahooFinance.suppressNotices === "function") {
 const CACHE = new Map();           // key -> { value, expiresAt }
 const INFLIGHT = new Map();        // key -> Promise (dedup concurrent callers)
 
+// Evict expired entries every 5 min so CACHE can't grow without bound across a
+// long-running server process. Unref'd so it never holds the process open.
+const _cacheSweep = setInterval(() => {
+  const now = Date.now();
+  for (const [k, v] of CACHE) if (v.expiresAt <= now) CACHE.delete(k);
+}, 5 * 60_000);
+if (typeof _cacheSweep.unref === "function") _cacheSweep.unref();
+
 // ---------------------------------------------------------------------------
 // Index-symbol normalization
 // ---------------------------------------------------------------------------
@@ -303,17 +311,4 @@ export async function searchNews(query, count = 8) {
       return [];
     }
   });
-}
-
-// Diagnostic — peek at cache state from a route or test
-export function _cacheStats() {
-  const now = Date.now();
-  return {
-    entries: CACHE.size,
-    inflight: INFLIGHT.size,
-    keys: [...CACHE.entries()].map(([k, v]) => ({
-      key: k,
-      ttlRemainingMs: Math.max(0, v.expiresAt - now),
-    })),
-  };
 }

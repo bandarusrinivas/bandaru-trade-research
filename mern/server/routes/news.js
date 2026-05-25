@@ -2,8 +2,8 @@
 //
 // Three sections (see the News tab):
 //   breaking      — macro / market-moving headlines (Google News RSS + Yahoo)
-//   stock_feed    — multi-source stock news: Finnhub + Google News + Yahoo +
-//                   MarketWatch RSS, deduped and recency-sorted
+//   stock_feed    — multi-source stock news: Finnhub + Benzinga + Google News
+//                   + Yahoo + MarketWatch RSS, deduped and recency-sorted
 //   world_indexes — international stock-index quotes (FTSE, DAX, Nikkei, …)
 //
 // WHY NOT SCHWAB for headlines: the Schwab developer API has no news endpoint —
@@ -191,6 +191,33 @@ async function fetchMarketWatch(limit = 24) {
   return out.slice(0, limit);
 }
 
+// ── Benzinga RSS — public stock-market news feeds (no key needed). Several
+// section feeds are merged (news, markets, trading ideas), deduped by URL.
+// Best-effort: a dead feed simply contributes nothing. ──
+const BENZINGA_FEEDS = [
+  "https://www.benzinga.com/news/feed",
+  "https://www.benzinga.com/markets/feed",
+  "https://www.benzinga.com/trading-ideas/feed",
+];
+
+async function fetchBenzinga(limit = 24) {
+  const seen = new Set();
+  const out = [];
+  await Promise.all(BENZINGA_FEEDS.map(async (url) => {
+    try {
+      const { data } = await axios.get(url, {
+        timeout: 8000,
+        headers: { "User-Agent": "Mozilla/5.0 (compatible; BandaruNews/1.0)" },
+        responseType: "text",
+      });
+      for (const it of parseRssItems(data, "Benzinga", "Benzinga", 14)) {
+        if (it.url && !seen.has(it.url)) { seen.add(it.url); out.push(it); }
+      }
+    } catch { /* best-effort — a dead feed just contributes nothing */ }
+  }));
+  return out.slice(0, limit);
+}
+
 // ── Finnhub general market news — needs a free key in FINNHUB_API_KEY.
 // Without a key this source is simply skipped; the feed still works on the
 // Google News / Yahoo / MarketWatch sources. Key: https://finnhub.io/register ──
@@ -291,11 +318,12 @@ router.get("/", async (req, res) => {
     breaking.sort(byRecency);
     breaking = breaking.slice(0, 24);
 
-    // ── 2. Stock Market Feed — Finnhub + Google News + Yahoo + MarketWatch ──
+    // ── 2. Stock Market Feed — Finnhub + Benzinga + Google + Yahoo + MarketWatch ──
     const finnhubEnabled = !!process.env.FINNHUB_API_KEY;
-    const [finnhubNews, mwNews, stockGoogle, stockYahoo] = await Promise.all([
+    const [finnhubNews, mwNews, benzingaNews, stockGoogle, stockYahoo] = await Promise.all([
       bestEffort(fetchFinnhub(30), 9000),
       bestEffort(fetchMarketWatch(24), 9000),
+      bestEffort(fetchBenzinga(24), 9000),
       bestEffort(
         Promise.all(STOCK_FEED_QUERIES.map((q) => fetchGoogleNews(q, 6)))
           .then((b) => b.flat()),
@@ -306,14 +334,16 @@ router.get("/", async (req, res) => {
     let stockFeed = dedupe([
       ...(finnhubNews || []),
       ...(mwNews || []),
+      ...(benzingaNews || []),
       ...(stockGoogle || []),
       ...(stockYahoo || []),
     ]);
     stockFeed.sort(byRecency);
-    stockFeed = stockFeed.slice(0, 40);
+    stockFeed = stockFeed.slice(0, 44);
     const stockSources = {
       finnhub: (finnhubNews || []).length,
       marketwatch: (mwNews || []).length,
+      benzinga: (benzingaNews || []).length,
       google: (stockGoogle || []).length,
       yahoo: (stockYahoo || []).length,
     };
@@ -347,8 +377,8 @@ router.get("/", async (req, res) => {
       world_indexes: worldIndexes,
       intl_news: intlNews,
       note: "Breaking news via Google News RSS + Yahoo Finance. Stock Market "
-          + "Feed merges Finnhub, Google News, Yahoo Finance and MarketWatch "
-          + "RSS. International indexes are ~15-min-delayed levels from Yahoo "
+          + "Feed merges Finnhub, Benzinga, Google News, Yahoo Finance and "
+          + "MarketWatch RSS. International indexes are ~15-min-delayed levels from Yahoo "
           + "Finance (last close vs prior close). International news is global / "
           + "regional market headlines via Google News + Yahoo. Finnhub "
           + "headlines appear only when a free FINNHUB_API_KEY is set in .env.",

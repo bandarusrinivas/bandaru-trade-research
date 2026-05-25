@@ -13,7 +13,62 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - 3D view with day partitions in the React canvas chart
 - WebSocket streaming for sub-second updates
 - Customizable indicator parameters (RSI period, MACD periods, BB bands)
-- Backtesting tab
+
+---
+
+## [2.2.0] — 2026-05-25 — News, GEX dashboard, backtester, delayed-data banner
+
+### Added
+- **News tab** — aggregated market news in four sections: breaking headlines,
+  a multi-source stock feed, international stock-index levels, and global
+  market headlines. Sources: Google News, Yahoo Finance, MarketWatch, Finnhub
+  and **Benzinga**. Finnhub headlines need a free `FINNHUB_API_KEY` in `.env`.
+- **Breaking-news alert bar** — a global strip (and optional desktop
+  notifications) for Fed / President / market-moving headlines.
+- **GEX Dashboard tab** — dealer gamma-exposure view (gamma flip level,
+  call/put walls). Replays the prior trading session when the market is closed.
+- **Pre-Market tab** — unusual-volume scanner with drop-down column filters.
+- **Backtest tab (Strategy Lab)** — backtests single- and multi-leg option
+  strategies; the input fields adapt to the selected strategy and premiums are
+  modeled with Black-Scholes.
+- **Delayed-data caution banner** — shows under the header whenever the
+  dashboard is serving ~15-min-delayed Yahoo data instead of real-time Schwab.
+- **Schwab→Yahoo circuit breaker** — after repeated Schwab failures the server
+  skips Schwab for a cooldown and serves Yahoo immediately, so pages keep
+  loading fast instead of stalling on a dead token.
+- **Entry / Exit Alerts** now projects next-day and next-week support /
+  resistance levels.
+- **Screener** gained a drop-down universe picker (top US large-caps + major
+  indexes) and click-to-filter column headers; **Pre-Market** gained the same
+  column filters.
+
+### Changed
+- Global UI density pass — tighter, more compact layouts so more content fits
+  without scrolling.
+- `start.command` now waits for the UI container as well as the API before
+  opening the browser, so the dashboard never opens to an empty page.
+- `DataSourceBanner` polls `/api/version` on a slow 60s cadence — the data
+  source rarely changes.
+
+### Fixed
+- **International stock indexes** in the News tab were blank — they now load
+  from Yahoo's v8 chart endpoint, which needs no crumb/cookie handshake.
+- **`BandaruChart`** wheel-zoom listener is now detached on teardown
+  (`destroy()`), preventing a listener leak if the chart is rebuilt.
+
+### Performance
+- **`OISnapshot`** collection now has a TTL index — snapshots auto-expire after
+  120 days instead of growing in MongoDB forever.
+- The Yahoo and Schwab adapters sweep expired cache entries every 5 minutes so
+  their in-memory caches can't grow unbounded over a long-running session.
+
+### Removed
+- Dead server exports `getMovers()` (schwab.js) and `_cacheStats()` (yahoo.js).
+- The experimental no-Docker single-process Windows build
+  (`start-windows-nodocker.bat`, `docs/WINDOWS-NODOCKER.md`) — the Docker build
+  is the supported path.
+- Repo cleanup — stale Vite temp files, a leftover `.env.placeholder.bak`,
+  `.DS_Store` files, and old Schwab token backups.
 
 ---
 

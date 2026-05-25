@@ -897,6 +897,7 @@ h4.bt-sub, h4.gex-sub { margin: 12px 0 6px; font-size: 13px; color: var(--text);
 .news-src-yahoo { background: rgba(199,163,255,0.16); color: #c7a3ff; }
 .news-src-finnhub { background: rgba(38,217,110,0.16); color: var(--green); }
 .news-src-marketwatch { background: rgba(255,122,140,0.16); color: var(--pink); }
+.news-src-benzinga { background: rgba(255,159,67,0.18); color: #ff9f43; }
 .news-feed-sub { margin: 0 0 8px; }
 .news-feed-counts { font-family: ui-monospace, monospace; }
 .news-finnhub-hint { margin: 0 0 8px; }
@@ -926,6 +927,13 @@ h4.bt-sub, h4.gex-sub { margin: 12px 0 6px; font-size: 13px; color: var(--text);
 .news-tickers { display: flex; gap: 3px; flex-wrap: wrap; }
 .news-tick { background: var(--panel-2); border: 1px solid var(--border); border-radius: 3px; padding: 0 5px; font-family: ui-monospace, monospace; font-size: 9px; color: var(--blue); }
 
+
+/* ----- Delayed-data caution banner (global, under the header) ----- */
+.ds-banner { display: flex; align-items: center; gap: 10px; padding: 6px 20px; font-size: 11.5px; background: rgba(241,200,112,0.15); border-bottom: 1px solid var(--border); border-left: 3px solid var(--gold); }
+.ds-banner-badge { font-size: 9px; font-weight: 700; letter-spacing: 0.5px; padding: 2px 8px; border-radius: 8px; background: var(--panel-2); color: var(--gold); white-space: nowrap; }
+.ds-banner-text { color: var(--muted); line-height: 1.4; }
+.ds-banner-text strong { color: var(--gold); }
+.ds-banner-reason { font-style: italic; opacity: 0.85; }
 
 /* ----- Breaking-news alert bar (global, under the header) ----- */
 .alert-bar { display: flex; flex-direction: column; }

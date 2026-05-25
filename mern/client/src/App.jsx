@@ -13,6 +13,7 @@ import PreMarket from "./components/PreMarket.jsx";
 import Backtest from "./components/Backtest.jsx";
 import News from "./components/News.jsx";
 import AlertBar from "./components/AlertBar.jsx";
+import DataSourceBanner from "./components/DataSourceBanner.jsx";
 import GexDashboard from "./components/GexDashboard.jsx";
 import { getAnalysis, getVersion } from "./api.js";
 
@@ -60,6 +61,7 @@ export default function App() {
     <div className="app">
       <Header ticker={ticker} setTicker={setTicker} analysis={analysis}
               refreshMs={refreshMs} setRefreshMs={setRefreshMs} />
+      <DataSourceBanner />
       <AlertBar />
       <nav className="tabs">
         {TABS.map((t) => (

@@ -70,7 +70,19 @@ export class BandaruChart {
     this.viewStart = 0;
     this.viewSlots = null;
     this._setupHiDPI();
-    this.canvas.addEventListener("wheel", (e) => this._onWheel(e), { passive: false });
+    // Keep a handler reference so destroy() can detach it (an inline arrow
+    // can't be removed, which would leak the instance if the chart is rebuilt).
+    this._onWheelBound = (e) => this._onWheel(e);
+    this.canvas.addEventListener("wheel", this._onWheelBound, { passive: false });
+  }
+
+  // Detach DOM listeners so the instance can be garbage-collected. Call this
+  // from the React component's effect cleanup when the chart is torn down.
+  destroy() {
+    if (this._onWheelBound) {
+      this.canvas.removeEventListener("wheel", this._onWheelBound);
+      this._onWheelBound = null;
+    }
   }
 
   _setupHiDPI() {

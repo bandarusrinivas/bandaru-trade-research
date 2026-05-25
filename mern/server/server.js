@@ -54,7 +54,7 @@ app.use("/api/news", newsRoute);          // aggregated market news feed
 app.use("/api/alerts", alertsRoute);      // breaking Fed / President / market alerts
 app.use("/api/gex-dashboard", gexDashboardRoute); // gamma-exposure trading dashboard
 
-// Health check (also used by docker-compose healthcheck)
+// Health check — root path returns a small JSON status.
 app.get("/", (_req, res) => res.json({ name: "Bandaru Trade Research", status: "ok" }));
 
 // ----- Boot -----
