@@ -202,3 +202,43 @@ class SchwabClient:
                             }
                         )
         return {"underlying_price": underlying_price, "contracts": flat}
+
+    def get_movers(self, index: str = "$SPX") -> dict:
+        """Top market movers for an index via the Schwab Movers API.
+
+        `index` is a Schwab movers symbol-id: $SPX (S&P 500), $COMPX (Nasdaq
+        Composite), $DJI (Dow), NYSE, NASDAQ. Returns the screener list
+        normalized so the Node layer can render it without depending on
+        Schwab's exact field names (which vary by API version).
+        """
+        # Enum-by-value lookup is version-robust: the API symbol-id string
+        # ($SPX, $COMPX, …) is the enum's value in every schwab-py release.
+        idx_enum = self.client.Movers.Index(index)
+        resp = self.client.get_movers(idx_enum)
+        resp.raise_for_status()
+        data = resp.json()
+
+        if isinstance(data, list):
+            screeners = data
+        elif isinstance(data, dict):
+            screeners = data.get("screeners") or data.get("movers") or []
+        else:
+            screeners = []
+
+        movers: list[dict] = []
+        for s in screeners:
+            if not isinstance(s, dict):
+                continue
+            movers.append({
+                "symbol": s.get("symbol"),
+                "description": s.get("description") or s.get("companyName"),
+                "last": s.get("lastPrice", s.get("last")),
+                "change": s.get("netChange", s.get("change")),
+                "change_pct": s.get(
+                    "netPercentChange",
+                    s.get("netPercentChangeInDouble", s.get("changePct")),
+                ),
+                "volume": s.get("totalVolume", s.get("volume")),
+                "direction": s.get("direction"),
+            })
+        return {"index": index, "movers": movers}

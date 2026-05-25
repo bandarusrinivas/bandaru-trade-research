@@ -85,6 +85,8 @@ services:
       # Optional cache tuning (defaults in services/yahoo.js, services/schwab.js)
       YAHOO_CACHE_QUOTE_MS: ${YAHOO_CACHE_QUOTE_MS:-5000}
       YAHOO_CACHE_INTRADAY_MS: ${YAHOO_CACHE_INTRADAY_MS:-15000}
+      # Optional Finnhub key — adds Finnhub headlines to the News Stock Feed.
+      FINNHUB_API_KEY: ${FINNHUB_API_KEY:-}
     ports:
       - "4000:4000"
     networks:

@@ -13,6 +13,7 @@ import { Router } from "express";
 import * as data from "../services/data.js";
 import { runBacktest, STRATEGIES } from "../services/backtest.js";
 import { runOptionBacktest, DIR_STRATEGIES } from "../services/optionBacktest.js";
+import { runStrategyBacktest, STRATEGIES as STRAT_DEFS } from "../services/strategyBacktest.js";
 
 const router = Router();
 
@@ -21,11 +22,48 @@ const LOOKBACK_BARS = { "1mo": 21, "2mo": 42, "3mo": 63 };
 
 router.get("/", async (req, res) => {
   const ticker = (req.query.ticker || "SPY").toString().toUpperCase();
-  const mode = (req.query.mode || "equity").toString().toLowerCase() === "option"
-    ? "option" : "equity";
+  const modeRaw = (req.query.mode || "equity").toString().toLowerCase();
+  const mode = ["option", "strategy"].includes(modeRaw) ? modeRaw : "equity";
   const strategy = (req.query.strategy || "ema_cross").toString();
 
   try {
+    // ───────────────────────── STRATEGY MODE ───────────────────────────
+    // Multi-leg option strategy scenario: one configured trade, specific
+    // entry date, editable strikes / DTE / premium.
+    if (mode === "strategy") {
+      if (!STRAT_DEFS[strategy]) {
+        return res.status(400).json({
+          error: `Unknown strategy "${strategy}"`,
+          available: Object.keys(STRAT_DEFS),
+        });
+      }
+      const entryDate = (req.query.entry_date || "").toString();
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(entryDate)) {
+        return res.status(400).json({ error: "entry_date is required (YYYY-MM-DD)." });
+      }
+      const num = (v) => { const x = parseFloat(v); return isFinite(x) ? x : null; };
+      const daily = await data.getDailyBars(ticker, "2y");
+      if (!daily?.closes?.length || daily.closes.length < 40) {
+        return res.status(404).json({ error: `Not enough price history for ${ticker}` });
+      }
+      const result = runStrategyBacktest(daily, {
+        strategy,
+        entryDate,
+        centerStrike: num(req.query.center_strike),
+        width: num(req.query.width),
+        dte: parseInt(req.query.dte || "14", 10),
+        farDte: parseInt(req.query.far_dte || "0", 10) || null,
+        premiumOverride: num(req.query.premium),
+      });
+      if (result.error) return res.status(400).json({ error: result.error });
+      return res.json({
+        ticker,
+        mode: "strategy",
+        strategies: Object.fromEntries(Object.entries(STRAT_DEFS).map(([k, v]) => [k, v.label])),
+        ...result,
+      });
+    }
+
     // ─────────────────────────── OPTION MODE ───────────────────────────
     if (mode === "option") {
       if (!DIR_STRATEGIES[strategy]) {

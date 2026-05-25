@@ -373,6 +373,20 @@ def chain():
 
 
 # ---------------------------------------------------------------------------
+# /data/movers — Schwab Movers API (top market movers for an index)
+# ---------------------------------------------------------------------------
+@app.route("/data/movers")
+def movers():
+    index = request.args.get("index", "$SPX")
+    if index not in ("$SPX", "$COMPX", "$DJI", "NYSE", "NASDAQ"):
+        index = "$SPX"
+    try:
+        return jsonify(get_client().get_movers(index))
+    except Exception as e:
+        return err_response(e)
+
+
+# ---------------------------------------------------------------------------
 # Boot
 # ---------------------------------------------------------------------------
 if __name__ == "__main__":

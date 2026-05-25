@@ -342,7 +342,7 @@ router.get("/", async (req, res) => {
   const timeframe = (req.query.timeframe || "daily").toString().toLowerCase() === "15m"
     ? "15m" : "daily";
   const symbols = raw
-    ? raw.split(",").map((s) => s.trim().toUpperCase()).filter(Boolean).slice(0, 50)
+    ? raw.split(",").map((s) => s.trim().toUpperCase()).filter(Boolean).slice(0, 70)
     : DEFAULT_LIST;
   const start = Date.now();
   try {

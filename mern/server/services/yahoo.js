@@ -279,6 +279,32 @@ export async function getProfile(symbol) {
 }
 
 
+// ---------------------------------------------------------------------------
+// News search — powers the News tab. Yahoo returns per-symbol / per-topic news
+// from one search call. Cached briefly so the aggregated feed stays fast.
+// ---------------------------------------------------------------------------
+export async function searchNews(query, count = 8) {
+  return memo(`news:${query}:${count}`, 3 * 60_000, async () => {
+    try {
+      const sr = await yahooFinance.search(query, { quotesCount: 0, newsCount: count });
+      return (sr?.news || [])
+        .map((n) => ({
+          title: n.title,
+          url: n.link || n.url || null,
+          publisher: n.publisher || "Yahoo Finance",
+          published: n.providerPublishTime
+            ? new Date(n.providerPublishTime * 1000).toISOString()
+            : null,
+          source: "Yahoo",
+          tickers: Array.isArray(n.relatedTickers) ? n.relatedTickers : [],
+        }))
+        .filter((n) => n.title && n.url);
+    } catch {
+      return [];
+    }
+  });
+}
+
 // Diagnostic — peek at cache state from a route or test
 export function _cacheStats() {
   const now = Date.now();

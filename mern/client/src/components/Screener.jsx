@@ -1,7 +1,39 @@
 import { useEffect, useMemo, useState } from "react";
 import { getScreener } from "../api.js";
+import { distinctSorted, hasActiveFilters } from "../colFilter.js";
 
-const DEFAULT = "BITB,COST,WMT,MSTR,UVXY,GBTC,META,GLD,GOOGL,MDB,BIDU,NFLX,TQQQ,SPY,QQQ,NVDA,AVGO,AMZN,AAPL,CSCO,VGT,JPM,COIN,ADBE,EEM,TSLA,GS,PLTR,AMD,BABA,PG,MSFT,XOM,SNOW,CRM,SPX,XSP,VIX";
+// Major US index proxies + headline indexes.
+const INDEXES = ["SPY", "QQQ", "IWM", "DIA", "SPX", "NDX", "RUT", "VIX"];
+
+// US large-caps (market cap > ~$10B), largest first. The dropdown lists each
+// for a single-stock scan; the universe presets scan capped subsets so a live
+// scan stays fast (a true ~1000-name live scan would take minutes/time out).
+const LARGE_CAPS = [
+  "AAPL", "MSFT", "NVDA", "AMZN", "GOOGL", "META", "TSLA", "AVGO", "LLY", "JPM",
+  "V", "XOM", "UNH", "MA", "COST", "HD", "PG", "JNJ", "ORCL", "ABBV",
+  "BAC", "KO", "MRK", "CVX", "WMT", "CRM", "AMD", "PEP", "NFLX", "TMO",
+  "ADBE", "LIN", "ACN", "MCD", "CSCO", "ABT", "WFC", "DHR", "INTC", "TXN",
+  "QCOM", "INTU", "AMAT", "GE", "CAT", "VZ", "AXP", "PFE", "IBM", "NOW",
+  "GS", "MS", "RTX", "HON", "UNP", "LOW", "SPGI", "BKNG", "T", "ISRG",
+  "AMGN", "NEE", "PLTR", "UBER", "BLK", "SCHW", "ELV", "C", "SYK", "DE",
+  "BSX", "TJX", "LMT", "ADP", "MDT", "GILD", "VRTX", "CB", "MMC", "PGR",
+  "REGN", "ETN", "MU", "BA", "SO", "KLAC", "PANW", "SNPS", "CDNS", "DUK",
+  "ICE", "SHW", "CME", "ZTS", "APH", "MO", "CL", "TDG", "WM", "AON",
+  "CMG", "ITW", "MCK", "EQIX", "GD", "NOC", "BDX", "MSI", "FCX", "PYPL",
+  "TGT", "SLB", "HCA", "EMR", "PH", "MAR", "ORLY", "COF", "CARR", "ABNB",
+  "NXPI", "PCAR", "ROP", "AJG", "MMM", "ADI", "WELL", "TT", "F", "GM",
+  "DAL", "COIN", "MSTR", "SNOW", "SBUX", "NKE", "DIS", "BABA",
+];
+
+// Universe presets resolved to a symbol list for a scan. Single-stock picks
+// use the "s:TICKER" form.
+function resolveSymbols(sel) {
+  if (sel === "u:mega") return [...INDEXES.slice(0, 4), ...LARGE_CAPS.slice(0, 24)];
+  if (sel === "u:wide") return [...INDEXES, ...LARGE_CAPS.slice(0, 62)];
+  if (sel === "u:indexes") return [...INDEXES];
+  if (sel && sel.startsWith("s:")) return [sel.slice(2)];
+  return [...INDEXES, ...LARGE_CAPS.slice(0, 37)]; // "u:core" — the default
+}
 
 const COLUMNS = [
   { key: "ticker",      label: "Symbol",  align: "left",  sticky: true },
@@ -75,7 +107,7 @@ function vol(v) {
 }
 
 export default function Screener({ onPickTicker }) {
-  const [input, setInput] = useState(() => localStorage.getItem("bandaru_screener") || DEFAULT);
+  const [universe, setUniverse] = useState(() => localStorage.getItem("bandaru_screener_uni") || "u:core");
   const [timeframe, setTimeframe] = useState(() => localStorage.getItem("bandaru_screener_tf") || "daily");
   const [results, setResults] = useState([]);
   const [filter, setFilter] = useState("all");
@@ -83,13 +115,29 @@ export default function Screener({ onPickTicker }) {
   const [scanning, setScanning] = useState(false);
   const [sortKey, setSortKey] = useState("ticker");
   const [sortAsc, setSortAsc] = useState(true);
+  const [colFilters, setColFilters] = useState({});
 
-  const scan = async (tf = timeframe) => {
-    const symbols = input.split(",").map((s) => s.trim().toUpperCase()).filter(Boolean);
+  const setColFilter = (key, val) => setColFilters((f) => ({ ...f, [key]: val }));
+  const clearColFilters = () => setColFilters({});
+  const filtersActive = hasActiveFilters(colFilters);
+
+  // Distinct values per column → options for each header dropdown.
+  const columnOptions = useMemo(() => {
+    const opts = {};
+    for (const c of COLUMNS) {
+      opts[c.key] = distinctSorted(
+        results.map((r) => String(c.format ? c.format(r[c.key], r) : (r[c.key] ?? "—"))),
+      );
+    }
+    return opts;
+  }, [results]);
+
+  const scan = async (tf = timeframe, uni = universe) => {
+    const symbols = resolveSymbols(uni);
     if (!symbols.length) return;
     setScanning(true);
-    setStatus(`Scanning ${symbols.length} symbols · ${tf === "15m" ? "15-minute" : "daily"} window…`);
-    localStorage.setItem("bandaru_screener", symbols.join(","));
+    setStatus(`Scanning ${symbols.length} symbol${symbols.length > 1 ? "s" : ""} · ${tf === "15m" ? "15-minute" : "daily"} window…`);
+    localStorage.setItem("bandaru_screener_uni", uni);
     try {
       const data = await getScreener(symbols, tf);
       setResults(data.results);
@@ -106,12 +154,12 @@ export default function Screener({ onPickTicker }) {
     }
   };
 
-  // Persist + (re)scan whenever the timeframe changes. Also runs once on mount.
+  // Persist + (re)scan whenever the timeframe or universe changes. Runs on mount.
   useEffect(() => {
     localStorage.setItem("bandaru_screener_tf", timeframe);
-    scan(timeframe);
+    scan(timeframe, universe);
     /* eslint-disable-next-line */
-  }, [timeframe]);
+  }, [timeframe, universe]);
 
   const filtered = useMemo(() => {
     let rows = results.filter((r) => {
@@ -124,6 +172,19 @@ export default function Screener({ onPickTicker }) {
       if (filter === "errors") return !!r.error;
       return true;
     });
+
+    // Per-column header filters — keep rows whose displayed cell equals the
+    // value picked in that column's dropdown. Every active column must match.
+    const activeCols = COLUMNS.filter((c) => String(colFilters[c.key] ?? "").trim());
+    if (activeCols.length) {
+      rows = rows.filter((r) =>
+        activeCols.every((c) => {
+          const disp = String(c.format ? c.format(r[c.key], r) : (r[c.key] ?? "—"));
+          return disp === colFilters[c.key];
+        }),
+      );
+    }
+
     if (sortKey) {
       rows = [...rows].sort((a, b) => {
         const av = a[sortKey], bv = b[sortKey];
@@ -137,7 +198,7 @@ export default function Screener({ onPickTicker }) {
       });
     }
     return rows;
-  }, [results, filter, sortKey, sortAsc]);
+  }, [results, filter, sortKey, sortAsc, colFilters]);
 
   const toggleSort = (key) => {
     if (key === sortKey) setSortAsc(!sortAsc);
@@ -154,10 +215,19 @@ export default function Screener({ onPickTicker }) {
       </div>
 
       <div className="screener-controls">
-        <input className="screener-input" value={input} onChange={(e) => setInput(e.target.value)}
-          placeholder="SPY, QQQ, AAPL, …" />
+        <select className="screener-universe" value={universe}
+                onChange={(e) => setUniverse(e.target.value)} disabled={scanning}>
+          <optgroup label="Scan a universe">
+            <option value="u:core">★ Top US Large-Caps + Major Indexes (~45)</option>
+            <option value="u:mega">Mega-Caps + Indexes (~28)</option>
+            <option value="u:wide">Extended Large-Caps (~70 · slower)</option>
+            <option value="u:indexes">Major Indexes only (8)</option>
+          </optgroup>
+          <optgroup label="Scan a single stock (market cap &gt; $10B)">
+            {LARGE_CAPS.map((t) => <option key={t} value={`s:${t}`}>{t}</option>)}
+          </optgroup>
+        </select>
         <button className="primary" onClick={() => scan()} disabled={scanning}>{scanning ? "Scanning…" : "🔍 Scan"}</button>
-        <button className="ghost" onClick={() => setInput(DEFAULT)}>Reset</button>
         <div className="screener-tf" title="Analysis window for trend / RSI / ADX / squeeze">
           <label>Window</label>
           {["15m", "daily"].map((tf) => (
@@ -178,7 +248,15 @@ export default function Screener({ onPickTicker }) {
           <option value="gamma">Gamma flag</option>
           <option value="errors">Errors</option>
         </select>
-        <span className="status">{status}</span>
+        {filtersActive && (
+          <button className="ghost screener-clear" onClick={clearColFilters}
+                  title="Clear all column filters">
+            ✕ Clear column filters
+          </button>
+        )}
+        <span className="status">
+          {filtersActive ? `${filtered.length} match · ` : ""}{status}
+        </span>
       </div>
 
       <div className="screener-table-wrap">
@@ -187,8 +265,26 @@ export default function Screener({ onPickTicker }) {
             <tr>
               {COLUMNS.map((c) => (
                 <th key={c.key} className={`align-${c.align} ${c.sticky ? "sticky-col" : ""}`}
-                    onClick={() => toggleSort(c.key)}>
+                    onClick={() => toggleSort(c.key)}
+                    title="Click to sort">
                   {c.label}{sortKey === c.key ? (sortAsc ? " ▲" : " ▼") : ""}
+                </th>
+              ))}
+            </tr>
+            <tr className="screener-filter-row">
+              {COLUMNS.map((c) => (
+                <th key={c.key} className={c.sticky ? "sticky-col" : ""}>
+                  <select
+                    className={`col-filter ${colFilters[c.key] ? "active" : ""}`}
+                    value={colFilters[c.key] || ""}
+                    title={`Filter by ${c.label}`}
+                    onChange={(e) => setColFilter(c.key, e.target.value)}
+                  >
+                    <option value="">All</option>
+                    {(columnOptions[c.key] || []).map((o) => (
+                      <option key={o} value={o}>{o}</option>
+                    ))}
+                  </select>
                 </th>
               ))}
             </tr>
@@ -196,7 +292,9 @@ export default function Screener({ onPickTicker }) {
           <tbody>
             {!filtered.length ? (
               <tr><td colSpan={COLUMNS.length} className="empty">
-                {scanning ? "Scanning…" : "No matches — click 🔍 Scan to start."}
+                {scanning ? "Scanning…"
+                  : filtersActive && results.length ? "No rows match the column filters — adjust or clear them."
+                  : "No matches — click 🔍 Scan to start."}
               </td></tr>
             ) : filtered.map((r) => (
               <tr key={r.ticker}
@@ -223,7 +321,11 @@ export default function Screener({ onPickTicker }) {
       </div>
 
       <p className="screener-note">
-        <b>MTF</b> = 15-minute vs daily trend agreement (▲▲ aligned up, ▼▼ aligned down, mixed = amber).
+        <b>Column filters</b> — pick a value from any header dropdown to keep only the
+        rows with that value. Dropdowns list the values actually present in the column
+        and combine (AND) with each other and the filter above; use <b>✕ Clear column
+        filters</b> to reset.
+        {" "}<b>MTF</b> = 15-minute vs daily trend agreement (▲▲ aligned up, ▼▼ aligned down, mixed = amber).
         {" "}<b>IV%</b> = ATM implied volatility from the option chain.
         {" "}<b>IV/HV</b> = ATM IV ÷ 20-day realized volatility — an "are options rich?" gauge (above 1.25× = rich, below 0.85× = cheap).
         {" "}<b>γ Wall</b> = heaviest call open-interest strike above price, a gamma-squeeze magnet proxy (⚠ price within 4%, • within 8%).

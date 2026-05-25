@@ -8,7 +8,7 @@ router.get("/", async (req, res) => {
   try {
     const filter = {};
     if (req.query.status && req.query.status !== "all") filter.status = req.query.status;
-    const trades = await Trade.find(filter).sort({ opened_at: -1 }).lean();
+    const trades = await Trade.find(filter).sort({ createdAt: -1 }).lean();
     res.json({ trades });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -25,15 +25,12 @@ router.post("/", async (req, res) => {
   }
 });
 
-// PATCH /api/trades/:id — close a trade (sets exit_price + closed_at)
+// PATCH /api/trades/:id — update any fields of a trade
 router.patch("/:id", async (req, res) => {
   try {
-    const update = { ...req.body };
-    if (req.body.exit_price != null) {
-      update.status = "closed";
-      update.closed_at = new Date();
-    }
-    const trade = await Trade.findByIdAndUpdate(req.params.id, update, { new: true });
+    const trade = await Trade.findByIdAndUpdate(req.params.id, req.body, {
+      new: true, runValidators: true,
+    });
     if (!trade) return res.status(404).json({ error: "not found" });
     res.json(trade);
   } catch (e) {

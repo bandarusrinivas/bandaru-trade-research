@@ -5,6 +5,67 @@ import { buildRecommendations, getTodayExpiration } from "../services/analysis.j
 
 const router = Router();
 
+// Monday (UTC) of the calendar week that contains a timestamp.
+function weekMonday(ts) {
+  const d = new Date(ts);
+  const day = d.getUTCDay();               // 0 Sun .. 6 Sat
+  const shift = day === 0 ? -6 : 1 - day;  // back to Monday
+  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + shift);
+}
+
+// Forward-projected support / resistance using floor-trader pivots:
+//   next_day  — pivots from the most recent completed daily bar
+//   next_week — pivots from the most recent completed calendar week
+// Modelled projection, not a forecast.
+function buildForwardLevels(daily) {
+  const n = daily?.timestamps?.length || 0;
+  if (n < 6) return null;
+
+  const shape = (p) => ({
+    next_level: p.R2,        // extended target / next resistance
+    target: p.R1,            // "likely end up at"
+    pivot: p.PP,
+    strong_support: p.S1,    // primary support
+    major_support: p.S2,     // deeper support
+    resistance_3: p.R3,
+    support_3: p.S3,
+  });
+
+  // ── Next trading day — from the last daily bar ──
+  const li = n - 1;
+  const nextDay = {
+    source_date: new Date(daily.timestamps[li]).toISOString().slice(0, 10),
+    ...shape(calculatePivots(daily.highs[li], daily.lows[li], daily.closes[li])),
+  };
+
+  // ── Next week — aggregate calendar weeks, use the last completed one ──
+  const weeks = new Map();
+  for (let i = 0; i < n; i++) {
+    const key = weekMonday(daily.timestamps[i]);
+    if (!weeks.has(key)) {
+      weeks.set(key, { monday: key, high: -Infinity, low: Infinity, close: null, lastTs: 0 });
+    }
+    const w = weeks.get(key);
+    w.high = Math.max(w.high, daily.highs[i]);
+    w.low = Math.min(w.low, daily.lows[i]);
+    if (daily.timestamps[i] >= w.lastTs) { w.lastTs = daily.timestamps[i]; w.close = daily.closes[i]; }
+  }
+  const weekList = [...weeks.values()].sort((a, b) => a.monday - b.monday);
+  let wk = null;
+  for (let i = weekList.length - 1; i >= 0; i--) {
+    // A week is complete once its Saturday (Monday + 5 days) has passed.
+    if (Date.now() >= weekList[i].monday + 5 * 86400000) { wk = weekList[i]; break; }
+  }
+  if (!wk) wk = weekList[weekList.length - 1];
+  const nextWeek = {
+    source_week: new Date(wk.monday).toISOString().slice(0, 10)
+      + " … " + new Date(wk.monday + 4 * 86400000).toISOString().slice(0, 10),
+    ...shape(calculatePivots(wk.high, wk.low, wk.close)),
+  };
+
+  return { next_day: nextDay, next_week: nextWeek };
+}
+
 router.get("/", async (req, res) => {
   const ticker = (req.query.ticker || "SPY").toString().toUpperCase();
   try {
@@ -40,6 +101,7 @@ router.get("/", async (req, res) => {
       spy: quote,
       previous_day: prev,
       pivots,
+      forward_levels: buildForwardLevels(daily),
       expiration: getTodayExpiration(),
       recommendations: recs,
       chain_count: chain.contracts.length,

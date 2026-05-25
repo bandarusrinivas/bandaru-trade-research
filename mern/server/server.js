@@ -22,6 +22,9 @@ import pivotStopsRoute from "./routes/pivotStops.js";
 import oiFlowRoute from "./routes/oiFlow.js";
 import backtestRoute from "./routes/backtest.js";
 import premarketRoute from "./routes/premarket.js";
+import newsRoute from "./routes/news.js";
+import alertsRoute from "./routes/alerts.js";
+import gexDashboardRoute from "./routes/gexDashboard.js";
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -47,6 +50,9 @@ app.use("/api/pivot-stops", pivotStopsRoute); // pivot stop ladder + level valid
 app.use("/api/oi-flow", oiFlowRoute);     // day-over-day open-interest change
 app.use("/api/backtest", backtestRoute);  // technical-signal strategy backtester
 app.use("/api/premarket", premarketRoute); // unusual-volume scanner
+app.use("/api/news", newsRoute);          // aggregated market news feed
+app.use("/api/alerts", alertsRoute);      // breaking Fed / President / market alerts
+app.use("/api/gex-dashboard", gexDashboardRoute); // gamma-exposure trading dashboard
 
 // Health check (also used by docker-compose healthcheck)
 app.get("/", (_req, res) => res.json({ name: "Bandaru Trade Research", status: "ok" }));

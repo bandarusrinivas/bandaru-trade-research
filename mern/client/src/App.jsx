@@ -11,15 +11,20 @@ import Profile from "./components/Profile.jsx";
 import OptionDecay from "./components/OptionDecay.jsx";
 import PreMarket from "./components/PreMarket.jsx";
 import Backtest from "./components/Backtest.jsx";
+import News from "./components/News.jsx";
+import AlertBar from "./components/AlertBar.jsx";
+import GexDashboard from "./components/GexDashboard.jsx";
 import { getAnalysis, getVersion } from "./api.js";
 
 const TABS = [
   { id: "chart",     label: "📊 Chart Analysis" },
   { id: "alerts",    label: "🚨 Entry / Exit Alerts" },
   { id: "pro",       label: "🎯 Pro Signals" },
+  { id: "gex",       label: "🧲 GEX Dashboard" },
   { id: "watchlist", label: "👀 Watchlist" },
   { id: "screener",  label: "🔍 Screener" },
   { id: "premarket", label: "🌅 Pre-Market" },
+  { id: "news",      label: "📰 News" },
   { id: "profile",   label: "📈 Profile" },
   { id: "chain",     label: "⛓ Options Chain" },
   { id: "decay",     label: "📉 Option Decay" },
@@ -55,6 +60,7 @@ export default function App() {
     <div className="app">
       <Header ticker={ticker} setTicker={setTicker} analysis={analysis}
               refreshMs={refreshMs} setRefreshMs={setRefreshMs} />
+      <AlertBar />
       <nav className="tabs">
         {TABS.map((t) => (
           <button key={t.id}
@@ -68,9 +74,11 @@ export default function App() {
         {tab === "chart"     && <ChartAnalysis ticker={ticker} analysis={analysis} refreshMs={refreshMs} />}
         {tab === "alerts"    && <EntryExitAlerts analysis={analysis} />}
         {tab === "pro"       && <ProSignals analysis={analysis} />}
+        {tab === "gex"       && <GexDashboard ticker={ticker} />}
         {tab === "watchlist" && <Watchlist onPickTicker={setTicker} refreshMs={refreshMs} />}
         {tab === "screener"  && <Screener onPickTicker={setTicker} />}
         {tab === "premarket" && <PreMarket onPickTicker={setTicker} />}
+        {tab === "news"      && <News />}
         {tab === "profile"   && <Profile ticker={ticker} />}
         {tab === "chain"     && <OptionsChain ticker={ticker} />}
         {tab === "decay"     && <OptionDecay ticker={ticker} />}

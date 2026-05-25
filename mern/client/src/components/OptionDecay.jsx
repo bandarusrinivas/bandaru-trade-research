@@ -23,6 +23,46 @@ function normCdf(x) {
               + t * (-1.821255978 + t * 1.330274429))));
   return x >= 0 ? 1 - p : p;
 }
+function normPdf(x) {
+  return 0.3989422804014327 * Math.exp(-(x * x) / 2);
+}
+
+// Black-Scholes price + greeks — mirrors the server engine, so the greeks
+// strip can update live at the simulated underlying price (the slider).
+function bsGreeks(S, K, T, r, sigma, type) {
+  const isCall = type !== "put";
+  const intrinsic = isCall ? Math.max(S - K, 0) : Math.max(K - S, 0);
+  if (T <= 0 || sigma <= 0) {
+    return {
+      price: intrinsic,
+      delta: isCall ? (S > K ? 1 : 0) : (S < K ? -1 : 0),
+      gamma: 0, theta: 0, vega: 0, intrinsic, extrinsic: 0,
+    };
+  }
+  const sqrtT = Math.sqrt(T);
+  const d1 = (Math.log(S / K) + (r + (sigma * sigma) / 2) * T) / (sigma * sqrtT);
+  const d2 = d1 - sigma * sqrtT;
+  const disc = Math.exp(-r * T);
+  let price, delta;
+  if (isCall) {
+    price = S * normCdf(d1) - K * disc * normCdf(d2);
+    delta = normCdf(d1);
+  } else {
+    price = K * disc * normCdf(-d2) - S * normCdf(-d1);
+    delta = normCdf(d1) - 1;
+  }
+  const gamma = normPdf(d1) / (S * sigma * sqrtT);
+  const vega = (S * normPdf(d1) * sqrtT) / 100;
+  const term1 = -(S * normPdf(d1) * sigma) / (2 * sqrtT);
+  const thetaAnnual = isCall
+    ? term1 - r * K * disc * normCdf(d2)
+    : term1 + r * K * disc * normCdf(-d2);
+  const finalPrice = Math.max(price, 0);
+  return {
+    price: finalPrice, delta, gamma, theta: thetaAnnual / 365, vega,
+    intrinsic, extrinsic: Math.max(finalPrice - intrinsic, 0),
+  };
+}
 
 // ── Heat color scale: premium fraction 0..1 → color ──
 // dark navy → deep blue → teal → gold → orange-red
@@ -380,45 +420,47 @@ function DecayGraph({ data }) {
 }
 
 // ════════════════════════════ main ════════════════════════════
+const todayStr = () => new Date().toISOString().slice(0, 10);
+
 export default function OptionDecay({ ticker }) {
   const [type, setType] = useState("call");
-  const [dte, setDte] = useState(0);
-  const [strike, setStrike] = useState("");
+  const [expiry, setExpiry] = useState(todayStr);   // expiration DATE (YYYY-MM-DD)
+  const [strike, setStrike] = useState("");          // "" = ATM
   const [contracts, setContracts] = useState("1");
-  const [entry, setEntry] = useState("");
-  const [mode, setMode] = useState("$");        // "$" | "%"
-  const [view, setView] = useState("sim");      // "sim" | "heatmap"
+  const [entry, setEntry] = useState("");            // optional cost basis
+  const [mode, setMode] = useState("$");             // "$" | "%"
+  const [view, setView] = useState("sim");           // "sim" | "heatmap"
   const [simPrice, setSimPrice] = useState(null);
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
 
-  // Fetch the model. Entry $ resets to the freshly-modeled premium on every
-  // load (a reload = a different contract); it then persists while you scrub
-  // the slider or change contracts (those don't reload).
-  const load = (overrideStrike) => {
+  // Days-to-expiry derived from the chosen expiry date.
+  const t0 = new Date(); t0.setHours(0, 0, 0, 0);
+  const dteDays = Math.max(
+    0, Math.round((new Date(expiry + "T00:00:00") - t0) / 86400000),
+  );
+
+  // Fetch the model. Pure read — never overwrites the cost-basis field.
+  const load = () => {
     setLoading(true); setError(null);
-    const params = { ticker, type, dte };
-    const s = overrideStrike !== undefined ? overrideStrike : strike;
-    if (s !== "" && s != null) params.strike = s;
+    const params = { ticker, type, dte: dteDays };
+    if (strike !== "" && strike != null) params.strike = strike;
     getOptionDecay(params)
-      .then((d) => {
-        setData(d);
-        if (strike === "" || overrideStrike === "") setStrike(String(d.strike));
-        setSimPrice(d.spot);
-        setEntry(String(d.current_premium));
-      })
+      .then((d) => { setData(d); setSimPrice(d.spot); })
       .catch((e) => setError(e.response?.data?.error || e.message))
       .finally(() => setLoading(false));
   };
 
-  // Refetch when the contract identity changes.
+  // Auto-recompute (debounced) whenever any contract input changes — so the
+  // premium, greeks and decay all populate live from ticker / type / strike /
+  // expiry without a manual "Update" click.
   useEffect(() => {
-    setStrike(""); load("");
+    const id = setTimeout(load, 350);
+    return () => clearTimeout(id);
     /* eslint-disable-next-line */
-  }, [ticker, type, dte]);
+  }, [ticker, type, strike, expiry]);
 
-  const g = data?.greeks || {};
   const sim = data?.simulator;
 
   // Live entry / contracts as numbers
@@ -464,6 +506,16 @@ export default function OptionDecay({ ticker }) {
     return { pop: reach(breakeven), itm: reach(data.strike), breakeven };
   }, [data, entryNum]);
 
+  // Greeks recomputed live at the simulated underlying price (the slider) — so
+  // premium, intrinsic, extrinsic, delta… all track the price you scrub to.
+  const liveGreeks = useMemo(() => {
+    if (!data || simPrice == null) return null;
+    const T = (data.total_hours_left || 0) / (365 * 24);
+    const sigma = (data.iv || 0) / 100;
+    return bsGreeks(simPrice, data.strike, T, 0.05, sigma, data.type);
+  }, [data, simPrice]);
+  const gv = liveGreeks || data?.greeks || {};
+
   const bigText = !calc ? "—"
     : mode === "%"
       ? (calc.basis > 0.5
@@ -503,30 +555,24 @@ export default function OptionDecay({ ticker }) {
           <label>Strike
             <input type="number" step="1" value={strike}
               onChange={(e) => setStrike(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && load()}
-              placeholder="ATM" />
+              placeholder={data ? `ATM (${data.strike})` : "ATM"} />
           </label>
-          <label>Days to expiry
-            <select value={dte} onChange={(e) => setDte(parseInt(e.target.value, 10))}>
-              <option value={0}>0DTE (today)</option>
-              <option value={1}>1 day</option>
-              <option value={2}>2 days</option>
-              <option value={5}>5 days</option>
-              <option value={7}>7 days</option>
-            </select>
+          <label>Expiry date
+            <input type="date" value={expiry} min={todayStr()}
+              onChange={(e) => setExpiry(e.target.value)} />
           </label>
           <label>Contracts
             <input type="number" min="1" step="1" value={contracts}
               onChange={(e) => setContracts(e.target.value)} />
           </label>
-          <label>Entry $ / contract
+          <label>Your cost / contract
             <input type="number" min="0" step="0.01" value={entry}
               onChange={(e) => setEntry(e.target.value)}
-              placeholder={liveEntry ? String(liveEntry) : "auto"} />
+              placeholder={liveEntry ? `modeled ${liveEntry}` : "modeled"} />
           </label>
-          <button className="primary" onClick={() => load()} disabled={loading}>
-            {loading ? "Computing…" : "Update"}
-          </button>
+          <span className="decay-auto muted small">
+            {loading ? "computing…" : `${dteDays} DTE · auto-updates`}
+          </span>
         </div>
         {error ? <p className="err">Error: {error}</p> : null}
       </div>
@@ -643,19 +689,19 @@ export default function OptionDecay({ ticker }) {
         </>
       ) : null}
 
-      {/* ── greeks strip (always visible with data) ── */}
+      {/* ── greeks strip — live at the simulated price (slider) ── */}
       {data ? (
         <div className="card decay-summary">
           <div className="decay-stat big">
-            <span className="decay-stat-label">Current Premium</span>
-            <span className="decay-stat-value">${data.current_premium}</span>
+            <span className="decay-stat-label">Premium @ ${Number(simPrice ?? data.spot).toFixed(2)}</span>
+            <span className="decay-stat-value">${Number(gv.price ?? 0).toFixed(2)}</span>
           </div>
-          <div className="decay-stat"><span className="decay-stat-label">Δ Delta</span><span>{g.delta}</span></div>
-          <div className="decay-stat"><span className="decay-stat-label">Γ Gamma</span><span>{g.gamma}</span></div>
-          <div className="decay-stat theta-stat"><span className="decay-stat-label">Θ Theta /day</span><span>{g.theta}</span></div>
-          <div className="decay-stat"><span className="decay-stat-label">ν Vega</span><span>{g.vega}</span></div>
-          <div className="decay-stat"><span className="decay-stat-label">Intrinsic</span><span>${g.intrinsic}</span></div>
-          <div className="decay-stat"><span className="decay-stat-label">Extrinsic</span><span>${g.extrinsic}</span></div>
+          <div className="decay-stat"><span className="decay-stat-label">Δ Delta</span><span>{Number(gv.delta ?? 0).toFixed(3)}</span></div>
+          <div className="decay-stat"><span className="decay-stat-label">Γ Gamma</span><span>{Number(gv.gamma ?? 0).toFixed(3)}</span></div>
+          <div className="decay-stat theta-stat"><span className="decay-stat-label">Θ Theta /day</span><span>{Number(gv.theta ?? 0).toFixed(3)}</span></div>
+          <div className="decay-stat"><span className="decay-stat-label">ν Vega</span><span>{Number(gv.vega ?? 0).toFixed(3)}</span></div>
+          <div className="decay-stat"><span className="decay-stat-label">Intrinsic</span><span>${Number(gv.intrinsic ?? 0).toFixed(2)}</span></div>
+          <div className="decay-stat"><span className="decay-stat-label">Extrinsic</span><span>${Number(gv.extrinsic ?? 0).toFixed(2)}</span></div>
           <div className="decay-stat"><span className="decay-stat-label">IV</span><span>{data.iv}%</span></div>
           <div className="decay-stat"><span className="decay-stat-label">Spot / Strike</span><span>${data.spot} / ${data.strike}</span></div>
         </div>

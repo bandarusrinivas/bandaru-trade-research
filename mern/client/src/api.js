@@ -18,16 +18,21 @@ export const getScreener  = (symbols, timeframe) => api.get("/screener", { param
 export const getProfile   = (ticker)        => api.get("/profile",   { params: { ticker } }).then((r) => r.data);
 export const getOptionDecay = (params)      => api.get("/option-decay", { params }).then((r) => r.data);
 export const getGamma     = (ticker)        => api.get("/gamma",     { params: { ticker } }).then((r) => r.data);
+export const getGexDashboard = (ticker)     => api.get("/gex-dashboard", { params: { ticker }, timeout: 45000 }).then((r) => r.data);
 export const getPivotStops = (ticker)       => api.get("/pivot-stops", { params: { ticker } }).then((r) => r.data);
 export const getOIFlow    = (ticker)        => api.get("/oi-flow",   { params: { ticker } }).then((r) => r.data);
 export const getBacktest  = (params) =>
   api.get("/backtest", { params, timeout: 60000 }).then((r) => r.data);
 export const getPremarket = (symbols)       =>
   api.get("/premarket", { params: { symbols: symbols?.join(",") }, timeout: 120000 }).then((r) => r.data);
+export const getNews      = (scope)          =>
+  api.get("/news", { params: { scope }, timeout: 90000 }).then((r) => r.data);
+export const getAlerts    = ()               =>
+  api.get("/alerts", { timeout: 30000 }).then((r) => r.data);
 
 export const listTrades   = (status)        => api.get("/trades",    { params: { status } }).then((r) => r.data);
 export const createTrade  = (body)          => api.post("/trades", body).then((r) => r.data);
-export const closeTrade   = (id, exit_price)=> api.patch(`/trades/${id}`, { exit_price }).then((r) => r.data);
+export const updateTrade  = (id, body)      => api.patch(`/trades/${id}`, body).then((r) => r.data);
 export const deleteTrade  = (id)            => api.delete(`/trades/${id}`).then((r) => r.data);
 
 export default api;
