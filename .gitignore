@@ -89,6 +89,9 @@ build/
 # ----- Docker -----
 .dockerignore.bak
 
+# ----- Release artifacts (built by package-release.command) -----
+release-dist/
+
 # ----- MongoDB local data (if anyone runs Mongo without volume) -----
 data/
 *.bson

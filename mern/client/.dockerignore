@@ -1,0 +1,8 @@
+# Keep the build context small and never copy local junk into images.
+node_modules
+dist
+.env
+.env.*
+*.log
+vite.config.js.timestamp-*
+npm-debug.log*

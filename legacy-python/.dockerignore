@@ -1,0 +1,20 @@
+# Keep the build context small and never copy the local venv, caches, or
+# secrets into the image. The Dockerfile only COPYs data_api.py + src/.
+.venv
+venv
+__pycache__
+*.pyc
+*.pyo
+schwab_token.json
+schwab_token.json.bak*
+*.token
+.env
+.env.*
+*.log
+static
+templates
+tests
+app.py
+launcher.py
+bandaru.spec
+bashrc.template

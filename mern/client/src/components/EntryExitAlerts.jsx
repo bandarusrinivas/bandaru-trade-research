@@ -31,10 +31,38 @@ export default function EntryExitAlerts({ analysis }) {
   const recs = analysis.recommendations || [];
   const pivots = analysis.pivots || {};
   const fl = analysis.forward_levels;
+  const ms = analysis.momentum_surge;
   const ticker = analysis.ticker || "";
 
   return (
     <div className="alerts-grid">
+      {ms && (
+        <div className={`card eea-momentum ms-${ms.verdict.toLowerCase()}`}>
+          <h2>Momentum Surge — {ticker}</h2>
+          <div className="ms-head">
+            <span className={`ms-verdict ms-v-${ms.verdict.toLowerCase()}`}>
+              {ms.verdict}
+            </span>
+            <span className="ms-score">{ms.score} / {ms.max} criteria met</span>
+          </div>
+          <ul className="ms-list">
+            {ms.criteria.map((c) => (
+              <li key={c.id} className={c.met ? "ms-met" : "ms-miss"}>
+                <span className="ms-tick">{c.met ? "✓" : "·"}</span>
+                <span className="ms-label">{c.label}</span>
+                <span className="ms-val">
+                  {c.value ?? "—"} <span className="muted">/ {c.threshold}</span>
+                </span>
+              </li>
+            ))}
+          </ul>
+          <p className="muted small">
+            Exploding-stocks-style detector: relative volume, prior-day-high
+            break, TTM Squeeze fire, ADX trend strength, RSI band and change %.
+            Planning signal — not a trade recommendation.
+          </p>
+        </div>
+      )}
       {fl && (
         <div className="card eea-forward">
           <h2>Projected Levels — {ticker} · Next Day &amp; Next Week</h2>

@@ -43,7 +43,9 @@ So one command handles every case: a valid token launches straight into real-tim
 > prerequisites and step-by-step setup for both Mac and Windows — Homebrew,
 > Docker Desktop, Git, Python — plus Schwab setup and a troubleshooting
 > section. **[docs/USER_GUIDE.md](docs/USER_GUIDE.md)** covers how to use every
-> tab once it's running.
+> tab once it's running. **[docs/ANALYSIS_ENGINE.md](docs/ANALYSIS_ENGINE.md)**
+> is the mechanic's manual — every indicator, formula and signal-generation
+> rule that drives the dashboard.
 
 ### Advanced — bare Docker (Yahoo data only)
 

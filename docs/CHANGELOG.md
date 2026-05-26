@@ -38,6 +38,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   loading fast instead of stalling on a dead token.
 - **Entry / Exit Alerts** now projects next-day and next-week support /
   resistance levels.
+- **Momentum Surge card** in Entry / Exit Alerts — six-criterion
+  "exploding stocks" detector (Rvol, prior-day-high break, TTM Squeeze fire,
+  ADX, RSI band, change %) with BULL / WAIT verdict.
+- **`docs/ANALYSIS_ENGINE.md`** — full technical reference for the engine,
+  every indicator, the entry/exit signal logic and modeled premiums.
 - **Screener** gained a drop-down universe picker (top US large-caps + major
   indexes) and click-to-filter column headers; **Pre-Market** gained the same
   column filters.

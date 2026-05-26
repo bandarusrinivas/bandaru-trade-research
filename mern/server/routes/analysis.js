@@ -1,7 +1,7 @@
 import { Router } from "express";
 import * as data from "../services/data.js";
 import { calculatePivots, adx, rsi, macd, ema } from "../services/indicators.js";
-import { buildRecommendations, getTodayExpiration } from "../services/analysis.js";
+import { buildRecommendations, getTodayExpiration, buildMomentumSurge } from "../services/analysis.js";
 
 const router = Router();
 
@@ -93,6 +93,8 @@ router.get("/", async (req, res) => {
     const ema21 = ema(daily.closes, 21);
     const ema50 = ema(daily.closes, 50);
 
+    const momentum_surge = buildMomentumSurge(quote, prev, daily, rsiVal, adxData);
+
     res.json({
       timestamp: new Date().toISOString(),
       ticker,
@@ -104,6 +106,7 @@ router.get("/", async (req, res) => {
       forward_levels: buildForwardLevels(daily),
       expiration: getTodayExpiration(),
       recommendations: recs,
+      momentum_surge,
       chain_count: chain.contracts.length,
       chain_error,
       indicators: {

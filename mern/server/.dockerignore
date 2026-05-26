@@ -1,0 +1,8 @@
+# Keep the build context small and never copy local junk / secrets into images.
+node_modules
+dist
+.env
+.env.*
+*.log
+tests
+npm-debug.log*

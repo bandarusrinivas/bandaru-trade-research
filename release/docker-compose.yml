@@ -1,0 +1,98 @@
+# Bandaru Trade Research — release deployment (prebuilt images, no source).
+#
+# This compose file runs the app entirely from prebuilt Docker images. There is
+# no build context and no source code involved — just `docker compose up`.
+#
+# Quick start (see README.md in this folder for detail):
+#   1. docker load -i bandaru-images-*.tar.gz
+#   2. cp .env.example .env        # optional — edit for Schwab / Finnhub
+#   3. docker compose up -d
+#   4. open http://localhost:3000
+
+services:
+
+  # ---------- MongoDB ----------
+  mongo:
+    image: mongo:7
+    container_name: bandaru-mongo
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_DATABASE: bandaru
+    volumes:
+      - mongo-data:/data/db
+    networks:
+      - bandaru-net
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.runCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ---------- Express backend (prebuilt, source bundled + minified) ----------
+  server:
+    image: bandaru-server:${BANDARU_VERSION:-2.2.0}
+    container_name: bandaru-server
+    restart: unless-stopped
+    depends_on:
+      mongo:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      MONGO_URI: mongodb://mongo:27017/bandaru
+      DATA_SOURCE: ${DATA_SOURCE:-yahoo}
+      SCHWAB_SIDECAR_URL: http://schwab:5050
+      SCHWAB_FALLBACK_TO_YAHOO: ${SCHWAB_FALLBACK_TO_YAHOO:-true}
+      FINNHUB_API_KEY: ${FINNHUB_API_KEY:-}
+    ports:
+      - "4000:4000"
+    networks:
+      - bandaru-net
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://localhost:4000/api/version || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  # ---------- React frontend (prebuilt, served via nginx) ----------
+  client:
+    image: bandaru-client:${BANDARU_VERSION:-2.2.0}
+    container_name: bandaru-client
+    restart: unless-stopped
+    depends_on:
+      - server
+    ports:
+      - "3000:80"
+    networks:
+      - bandaru-net
+
+  # ---------- Schwab real-time data sidecar (optional) ----------
+  # Only starts under `--profile schwab`. Needs your own Schwab developer keys
+  # in .env and a one-time OAuth token placed in ./tokens — see README.md.
+  schwab:
+    image: bandaru-schwab:${BANDARU_VERSION:-2.2.0}
+    container_name: bandaru-schwab
+    restart: unless-stopped
+    profiles: ["schwab"]
+    environment:
+      SCHWAB_API_KEY: ${SCHWAB_API_KEY:-}
+      SCHWAB_APP_SECRET: ${SCHWAB_APP_SECRET:-}
+      SCHWAB_CALLBACK_URL: ${SCHWAB_CALLBACK_URL:-https://127.0.0.1}
+      SCHWAB_TOKEN_PATH: /tokens/schwab_token.json
+      PORT: 5050
+    volumes:
+      - ./tokens:/tokens
+    networks:
+      - bandaru-net
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:5050/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  mongo-data:
+
+networks:
+  bandaru-net:
+    driver: bridge
