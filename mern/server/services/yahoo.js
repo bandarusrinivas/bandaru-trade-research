@@ -62,30 +62,8 @@ function isRateLimited(err) {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-// Global request queue — Yahoo Finance is VERY rate-limited by IP.
-// Space requests by 2 seconds to stay under the limit.
-const REQUEST_QUEUE = {
-  lastRequestTime: 0,
-  minDelayMs: 2000,  // 2 seconds between requests
-};
-
-let queuePromise = Promise.resolve();
-
-async function queuedRequest(fn) {
-  const task = queuePromise.then(async () => {
-    const now = Date.now();
-    const timeSinceLastRequest = now - REQUEST_QUEUE.lastRequestTime;
-    if (timeSinceLastRequest < REQUEST_QUEUE.minDelayMs) {
-      await sleep(REQUEST_QUEUE.minDelayMs - timeSinceLastRequest);
-    }
-    REQUEST_QUEUE.lastRequestTime = Date.now();
-    return fn();
-  });
-  
-  // Catch errors so a failure doesn't break the entire queue chain for subsequent requests
-  queuePromise = task.catch(() => {}); 
-  return task;
-}
+// Global queue to space out requests for DIFFERENT symbols and prevent bursting
+let _globalQueue = Promise.resolve();
 
 /**
  * Cache + dedup + retry wrapper.
@@ -103,15 +81,34 @@ async function memo(key, ttl, fn) {
   const promise = (async () => {
     try {
       let value;
-      try {
-        value = await queuedRequest(fn);
-      } catch (e) {
-        if (isRateLimited(e)) {
-          // Retry after a longer jittered backoff — Yahoo is very aggressive
-          await sleep(5000 + Math.random() * 3000);
-          value = await queuedRequest(fn);
-        } else {
-          throw e;
+      let retries = 0;
+      const maxRetries = 3;
+      
+      while (true) {
+        try {
+          // Execute function in a serialized global queue to pace outgoing requests
+          value = await new Promise((resolve, reject) => {
+            const task = async () => {
+              try {
+                await sleep(250); // 250ms spacing between all Yahoo API calls globally
+                const res = await fn();
+                resolve(res);
+              } catch (err) {
+                reject(err);
+              }
+            };
+            _globalQueue = _globalQueue.then(task).catch(() => {});
+          });
+          break; // Success, exit retry loop
+        } catch (e) {
+          if (isRateLimited(e) && retries < maxRetries) {
+            retries++;
+            const backoffMs = Math.pow(2, retries) * 1000 + Math.random() * 500;
+            console.warn(`[Yahoo] Rate limited on ${key}. Retrying in ${Math.round(backoffMs)}ms (Attempt ${retries}/${maxRetries})`);
+            await sleep(backoffMs);
+          } else {
+            throw e;
+          }
         }
       }
       CACHE.set(key, { value, expiresAt: Date.now() + ttl });
@@ -200,6 +197,10 @@ export async function getIntradayBars(symbol, interval = "5m", period = "1d") {
 export async function getPreviousDay(symbol) {
   return memo(`prevday:${symbol}`, TTL.prevDay, async () => {
     const bars = await getDailyBars(symbol, "1mo");
+    if (!bars || !bars.timestamps || bars.timestamps.length === 0) {
+      throw new Error(`No daily bars available for ${symbol} to determine previous day`);
+    }
+
     const todayDate = new Date().toDateString();
     for (let i = bars.timestamps.length - 1; i >= 0; i--) {
       if (new Date(bars.timestamps[i]).toDateString() !== todayDate) {
