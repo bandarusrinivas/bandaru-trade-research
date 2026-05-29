@@ -62,6 +62,31 @@ function isRateLimited(err) {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// Global request queue — Yahoo Finance is VERY rate-limited by IP.
+// Space requests by 2 seconds to stay under the limit.
+const REQUEST_QUEUE = {
+  lastRequestTime: 0,
+  minDelayMs: 2000,  // 2 seconds between requests
+};
+
+let queuePromise = Promise.resolve();
+
+async function queuedRequest(fn) {
+  const task = queuePromise.then(async () => {
+    const now = Date.now();
+    const timeSinceLastRequest = now - REQUEST_QUEUE.lastRequestTime;
+    if (timeSinceLastRequest < REQUEST_QUEUE.minDelayMs) {
+      await sleep(REQUEST_QUEUE.minDelayMs - timeSinceLastRequest);
+    }
+    REQUEST_QUEUE.lastRequestTime = Date.now();
+    return fn();
+  });
+  
+  // Catch errors so a failure doesn't break the entire queue chain for subsequent requests
+  queuePromise = task.catch(() => {}); 
+  return task;
+}
+
 /**
  * Cache + dedup + retry wrapper.
  *   key   – cache key
@@ -79,12 +104,12 @@ async function memo(key, ttl, fn) {
     try {
       let value;
       try {
-        value = await fn();
+        value = await queuedRequest(fn);
       } catch (e) {
         if (isRateLimited(e)) {
-          // Single retry after a short jittered backoff
-          await sleep(800 + Math.random() * 600);
-          value = await fn();
+          // Retry after a longer jittered backoff — Yahoo is very aggressive
+          await sleep(5000 + Math.random() * 3000);
+          value = await queuedRequest(fn);
         } else {
           throw e;
         }

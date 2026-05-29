@@ -82,9 +82,14 @@ services:
       SCHWAB_SIDECAR_URL: http://schwab:5050
       # If Schwab call fails (token bad, sidecar down), auto-fallback to Yahoo
       SCHWAB_FALLBACK_TO_YAHOO: ${SCHWAB_FALLBACK_TO_YAHOO:-true}
+      SCHWAB_BREAKER_FAILS: ${SCHWAB_BREAKER_FAILS:-2}
+      SCHWAB_BREAKER_COOLDOWN_MS: ${SCHWAB_BREAKER_COOLDOWN_MS:-90000}
       # Optional cache tuning (defaults in services/yahoo.js, services/schwab.js)
-      YAHOO_CACHE_QUOTE_MS: ${YAHOO_CACHE_QUOTE_MS:-5000}
-      YAHOO_CACHE_INTRADAY_MS: ${YAHOO_CACHE_INTRADAY_MS:-15000}
+      YAHOO_CACHE_QUOTE_MS: ${YAHOO_CACHE_QUOTE_MS:-30000}
+      YAHOO_CACHE_INTRADAY_MS: ${YAHOO_CACHE_INTRADAY_MS:-45000}
+      YAHOO_CACHE_DAILY_MS: ${YAHOO_CACHE_DAILY_MS:-600000}
+      YAHOO_CACHE_PREVDAY_MS: ${YAHOO_CACHE_PREVDAY_MS:-600000}
+      YAHOO_CACHE_CHAIN_MS: ${YAHOO_CACHE_CHAIN_MS:-60000}
       # Optional Finnhub key — adds Finnhub headlines to the News Stock Feed.
       FINNHUB_API_KEY: ${FINNHUB_API_KEY:-}
     ports:
