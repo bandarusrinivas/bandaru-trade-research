@@ -21,7 +21,19 @@ from urllib.parse import urlparse, parse_qs
 
 from dotenv import load_dotenv
 
-load_dotenv()
+# Load .env from the first existing path. Works in both the Docker sidecar
+# (/app/.env) and the host venv (project root or legacy-python/.env). Avoids
+# find_dotenv()'s sys._getframe() walk for sourceless-loader safety.
+_HERE = os.path.dirname(os.path.abspath(__file__))
+for _p in (
+    "/app/.env",
+    os.path.normpath(os.path.join(_HERE, "..", ".env")),
+    os.path.normpath(os.path.join(_HERE, "..", "..", ".env")),
+    os.path.join(os.getcwd(), ".env"),
+):
+    if os.path.isfile(_p):
+        load_dotenv(_p, override=False)
+        break
 
 API_KEY = os.environ.get("SCHWAB_API_KEY")
 APP_SECRET = os.environ.get("SCHWAB_APP_SECRET")

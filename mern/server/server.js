@@ -25,6 +25,7 @@ import premarketRoute from "./routes/premarket.js";
 import newsRoute from "./routes/news.js";
 import alertsRoute from "./routes/alerts.js";
 import gexDashboardRoute from "./routes/gexDashboard.js";
+import vexDashboardRoute from "./routes/vexDashboard.js";
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -53,9 +54,31 @@ app.use("/api/premarket", premarketRoute); // unusual-volume scanner
 app.use("/api/news", newsRoute);          // aggregated market news feed
 app.use("/api/alerts", alertsRoute);      // breaking Fed / President / market alerts
 app.use("/api/gex-dashboard", gexDashboardRoute); // gamma-exposure trading dashboard
+app.use("/api/vex-dashboard", vexDashboardRoute); // vanna-exposure trading dashboard
 
 // Health check — root path returns a small JSON status.
 app.get("/", (_req, res) => res.json({ name: "Bandaru Trade Research", status: "ok" }));
+
+// ----- Last-resort error handlers -----
+// Any error that escapes a route lands here as JSON so the dashboard sees a
+// structured response instead of a torn TCP socket.
+// eslint-disable-next-line no-unused-vars
+app.use((err, req, res, _next) => {
+  console.error(`[server] unhandled in ${req.method} ${req.originalUrl}:`, err?.stack || err);
+  if (res.headersSent) return;
+  res.status(500).json({
+    error: err?.message || "Internal server error",
+    path: req.originalUrl,
+  });
+});
+
+// Keep the Node process alive even if a stray promise/exception leaks out.
+process.on("unhandledRejection", (reason, p) => {
+  console.error("[server] unhandledRejection:", reason);
+});
+process.on("uncaughtException", (e) => {
+  console.error("[server] uncaughtException:", e?.stack || e);
+});
 
 // ----- Boot -----
 async function main() {

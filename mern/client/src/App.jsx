@@ -15,6 +15,7 @@ import News from "./components/News.jsx";
 import AlertBar from "./components/AlertBar.jsx";
 import DataSourceBanner from "./components/DataSourceBanner.jsx";
 import GexDashboard from "./components/GexDashboard.jsx";
+import VexDashboard from "./components/VexDashboard.jsx";
 import { getAnalysis, getVersion } from "./api.js";
 
 const TABS = [
@@ -22,6 +23,7 @@ const TABS = [
   { id: "alerts",    label: "🚨 Entry / Exit Alerts" },
   { id: "pro",       label: "🎯 Pro Signals" },
   { id: "gex",       label: "🧲 GEX Dashboard" },
+  { id: "vex",       label: "🌀 VEX Dashboard" },
   { id: "watchlist", label: "👀 Watchlist" },
   { id: "screener",  label: "🔍 Screener" },
   { id: "premarket", label: "🌅 Pre-Market" },
@@ -77,6 +79,7 @@ export default function App() {
         {tab === "alerts"    && <EntryExitAlerts analysis={analysis} />}
         {tab === "pro"       && <ProSignals analysis={analysis} />}
         {tab === "gex"       && <GexDashboard ticker={ticker} />}
+        {tab === "vex"       && <VexDashboard ticker={ticker} />}
         {tab === "watchlist" && <Watchlist onPickTicker={setTicker} refreshMs={refreshMs} />}
         {tab === "screener"  && <Screener onPickTicker={setTicker} />}
         {tab === "premarket" && <PreMarket onPickTicker={setTicker} />}

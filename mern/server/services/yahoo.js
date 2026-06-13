@@ -84,8 +84,31 @@ async function memo(key, ttl, fn) {
         if (isRateLimited(e)) {
           // Single retry after a short jittered backoff
           await sleep(800 + Math.random() * 600);
-          value = await fn();
+          try {
+            value = await fn();
+          } catch (e2) {
+            // Stale-cache fallback — if we have ANY previously-cached value
+            // (even an expired one), serve it so the dashboard never sees
+            // empty data when both real-time and the network are flaky.
+            if (hit) {
+              console.warn(`[yahoo] ${key}: rate-limited; serving stale cache (age ${Math.round((now - (hit.expiresAt - ttl)) / 1000)}s)`);
+              CACHE.set(key, { value: hit.value, expiresAt: now + Math.min(ttl, 60_000), stale: true });
+              return hit.value;
+            }
+            // No prior cache — surface a clean message.
+            if (isRateLimited(e2)) {
+              throw new Error("Yahoo Finance is rate-limiting — try again in ~60s");
+            }
+            throw e2;
+          }
         } else {
+          // Non-rate-limit error — still serve stale cache if available so a
+          // single bad upstream response doesn't blank the UI.
+          if (hit) {
+            console.warn(`[yahoo] ${key}: upstream failed (${e?.message}); serving stale cache`);
+            CACHE.set(key, { value: hit.value, expiresAt: now + Math.min(ttl, 30_000), stale: true });
+            return hit.value;
+          }
           throw e;
         }
       }

@@ -1,0 +1,28 @@
+-- Hammerspoon entry point for the Discord → WhatsApp notification bridge.
+-- The installer (install.sh) replaces @@PROJECT_DIR@@ with the real path
+-- and writes this file to ~/.hammerspoon/init.lua.
+
+local watcher = dofile("@@PROJECT_DIR@@/notification-bridge/watcher.lua")
+
+watcher.start({
+  env_path  = "@@PROJECT_DIR@@/.env",
+  interval  = 5,   -- seconds between polls
+})
+
+-- Handy hotkey: Cmd+Alt+Ctrl+W sends a smoke-test WhatsApp message so you
+-- can confirm credentials without waiting for a Discord ping.
+hs.hotkey.bind({ "cmd", "alt", "ctrl" }, "W", function()
+  watcher.smoke({ env_path = "@@PROJECT_DIR@@/.env" })
+end)
+
+-- Reload-on-save: if you edit watcher.lua, Hammerspoon will pick it up.
+hs.pathwatcher.new("@@PROJECT_DIR@@/notification-bridge", function(files)
+  for _, f in ipairs(files) do
+    if f:match("%.lua$") then
+      hs.reload()
+      return
+    end
+  end
+end):start()
+
+hs.alert.show("WA bridge loaded")

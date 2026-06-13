@@ -13,9 +13,24 @@ cd "$(dirname "$0")"
 ROOT="$(pwd)"
 
 DRY_RUN=0
+DEEP=0
 for arg in "$@"; do
   case "$arg" in
     --dry-run|-n) DRY_RUN=1 ;;
+    --deep)       DEEP=1 ;;
+    -h|--help)
+      cat <<EOF
+Usage: cleanup.command [--dry-run] [--deep]
+
+  (no flags)   Soft clean: editor backups, pycache, token .bak, .DS_Store,
+               Vite dist, deprecated one-time scripts, Windows .bat files.
+  --dry-run    Preview only — list what would be removed, delete nothing.
+  --deep       Also remove legacy-python/.venv and mern/*/node_modules.
+               They get recreated on the next start.command run, but the
+               rebuild adds 1-2 minutes the first time.
+EOF
+      exit 0
+      ;;
   esac
 done
 
@@ -109,6 +124,44 @@ echo "5. Stale Vite build output (mern/client/dist)"
 
 # ──────────────────────────────────────────────────────────────────
 echo
+echo "6. Deprecated one-time scripts"
+# ──────────────────────────────────────────────────────────────────
+# These scripts existed only to handle a specific past migration:
+#   • migrate-to-mac-home.command — moved the project from iCloud Drive
+#     to ~/bandaru-trade-research. Migration is complete; the script no
+#     longer applies.
+#   • complete-migration.command — retry helper for that same migration.
+# Keeping them around clutters the project root and tempts re-runs.
+for f in migrate-to-mac-home.command complete-migration.command; do
+  [ -e "$f" ] && _rm "$f"
+done
+
+# ──────────────────────────────────────────────────────────────────
+echo
+echo "7. Windows .bat scripts (no-Docker Windows build was removed)"
+# ──────────────────────────────────────────────────────────────────
+# An earlier revision shipped a no-Docker Windows installer. That whole
+# code path was removed per request — these .bat files are the only
+# leftover. Mac is the supported platform; Windows users run Docker
+# Desktop + start.command via WSL or just docker compose directly.
+for f in start.bat stop.bat auth-schwab.bat cleanup.bat install-windows.bat push-to-github.bat; do
+  [ -e "$f" ] && _rm "$f"
+done
+
+# ──────────────────────────────────────────────────────────────────
+if [ "$DEEP" = "1" ]; then
+  echo
+  echo "8. [deep] Python virtualenv + npm node_modules"
+  # ──────────────────────────────────────────────────────────────────
+  # --deep mode. These rebuild on the next start.command run (+1-2 min).
+  [ -d "legacy-python/.venv" ] && _rm "legacy-python/.venv"
+  for d in mern/server/node_modules mern/client/node_modules mern/node_modules; do
+    [ -d "$d" ] && _rm "$d"
+  done
+fi
+
+# ──────────────────────────────────────────────────────────────────
+echo
 echo "═══════════════════════════════════════════════════════════════"
 read -r tally_count tally_bytes < "$TALLY"
 rm -f "$TALLY" "$TALLY.tmp" 2>/dev/null
@@ -116,8 +169,12 @@ printf '  Summary: %d item(s), %s reclaimed\n' "$tally_count" "$(_pretty "$tally
 [ "$DRY_RUN" = "1" ] && echo && echo "  Re-run without --dry-run to actually delete."
 echo "═══════════════════════════════════════════════════════════════"
 echo
-echo "NOT touched (delete by hand if you really want the space back):"
-echo "  legacy-python/.venv          Python virtualenv (~50 MB)"
-echo "  mern/*/node_modules          npm packages (~300 MB)"
+if [ "$DEEP" = "0" ]; then
+  echo "Not touched (use --deep to also remove):"
+  echo "  legacy-python/.venv          Python virtualenv (~50 MB)"
+  echo "  mern/*/node_modules          npm packages (~300 MB)"
+fi
+echo "Never touched (delete manually if you really mean it):"
+echo "  .env, schwab_token.json      your live credentials"
 echo "  Docker volumes               run  stop.command  then"
 echo "                               'cd mern && docker compose down -v' to wipe Mongo"

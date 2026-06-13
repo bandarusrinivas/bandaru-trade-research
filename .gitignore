@@ -22,8 +22,21 @@ ENV/
 .env
 .env.local
 .env.*.local
+# Backup variants of .env created by various helper scripts. These
+# contain the same Schwab / Discord / Finnhub keys as .env itself —
+# they must NEVER be committed. GitHub push-protection caught a
+# discord-whatsapp-bridge/.env.backup-* once; this widens the
+# pattern across the whole repo.
+.env.backup
+.env.backup-*
+.env.bak
+.env.bak-*
+.env.bak.*
+.env.preauth-*
+.env.orig
 schwab_token.json
 schwab_token.json.bak*
+schwab_token.json.preauth-*
 *.token
 *.tokens
 *credentials*
@@ -35,6 +48,8 @@ schwab_token.json.bak*
 *.keystore
 .aws/
 .gcp/
+# Sandbox / scratch leftovers
+_test_write
 
 # ----- IDE / editor -----
 .vscode/

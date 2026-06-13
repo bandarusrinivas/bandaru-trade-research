@@ -153,10 +153,13 @@ router.post("/snapshot", async (req, res) => {
   if (!mongoReady()) return res.status(503).json({ error: "MongoDB unavailable — OI history needs the database." });
   try {
     const snap = await captureSnapshot(ticker, true);
-    if (!snap) return res.status(404).json({ error: `No chain to snapshot for ${ticker}` });
+    if (!snap) return res.status(200).json({
+      ticker, available: false,
+      error: `No option chain to snapshot for ${ticker}.`,
+    });
     res.json({ ticker, date: snap.date, contracts: snap.contracts.length, spot: snap.spot });
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.status(200).json({ ticker, available: false, error: e?.message || String(e) });
   }
 });
 
@@ -206,7 +209,7 @@ router.get("/", async (req, res) => {
           + "cannot be backfilled.",
     });
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.status(200).json({ ticker, available: false, error: e?.message || String(e) });
   }
 });
 

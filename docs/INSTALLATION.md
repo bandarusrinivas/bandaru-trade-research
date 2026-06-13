@@ -205,8 +205,15 @@ To stop everything later, double-click **`stop.command`**.
 
 ## 4. Windows — prerequisites & setup
 
-You will install, in order: **WSL2 → Docker Desktop → Git → Python 3**, then
-get the project and launch it.
+> **For a much more detailed Windows-only walkthrough — beginner-friendly,
+> with troubleshooting tables and OneDrive/antivirus gotchas — see the
+> dedicated [WINDOWS-INSTALL.md](../WINDOWS-INSTALL.md) at the project
+> root.** This section is the quick reference; that doc is the
+> step-by-step for non-technical users.
+
+You will install: **WSL2 → Docker Desktop**, then get the project and
+launch it. **Python is NOT required** — Schwab OAuth runs inside the
+Docker container which already has Python 3.11 baked in.
 
 ### 4.1 Enable WSL2
 
@@ -263,22 +270,13 @@ winget install --id Git.Git -e
 > Git is optional but recommended — without it you must re-download the ZIP
 > each time you want to update the app.
 
-### 4.4 Install Python 3 (only for Schwab real-time data)
+### 4.4 (Skip — Python not needed on Windows)
 
-**Skip this step if you will run on free Yahoo data.**
-
-Install from <https://www.python.org/downloads/> — and during install **tick
-the box "Add Python to PATH"** on the first screen. Or:
-
-```powershell
-winget install --id Python.Python.3.12 -e
-```
-
-You need **Python 3.10 or newer**. Verify:
-
-```powershell
-python --version
-```
+> Earlier revisions required a host Python install for Schwab OAuth.
+> That's **no longer the case**: `auth-schwab.bat` runs the OAuth flow
+> inside the `bandaru-schwab` Docker container, which already has
+> Python 3.11. You don't need to install Python on Windows for any
+> reason — host or otherwise.
 
 ### 4.5 Get the project
 
@@ -294,31 +292,33 @@ git clone https://github.com/bandarusrinivas/bandaru-trade-research.git
 `bandaru-trade-research` folder somewhere stable such as
 `Documents`. Avoid extracting it into `Downloads` or onto the Desktop.
 
-### 4.6 Run the prerequisite checker
+### 4.6 First launch — run install.bat
 
-The project ships a checker that confirms everything is in place. In the
-`bandaru-trade-research` folder, **double-click `install-windows.bat`**.
-
-It inspects Docker, Node.js, Python, Git, and your `.env` file, prints a clear
-`[x]` / `[ ]` checklist of what is present or missing, and tells you the exact
-next step. It does **not** install anything itself — install any missing items
-using sections 4.1–4.4 above, then re-run it.
-
-### 4.7 First launch
-
-In the `bandaru-trade-research` folder, **double-click `start.bat`**.
+In the `bandaru-trade-research` folder, **double-click `install.bat`**.
 
 - Windows SmartScreen may warn *"Windows protected your PC."* Click
   **More info → Run anyway** (this happens only the first time).
-- A console window opens and `start.bat` checks Docker, creates the `.env`
-  file, builds the containers (first build takes several minutes), and opens
-  the dashboard.
+- The installer runs **8 prerequisite checks** automatically (PowerShell
+  version, Windows build, Docker CLI, Docker daemon, Linux containers,
+  free disk, host Python — informational only, long-path support). Each
+  prints a `✓`, `!`, or `✗` line so you see exactly what's missing.
+- If something fails, the installer prints the exact fix below the `✗`
+  line and stops. Apply the fix, then re-run `install.bat`.
+- On success it creates `.env` from the template, prompts for **Schwab
+  credentials or Yahoo mode**, builds the containers (first build is
+  3–5 minutes), waits for the dashboard to respond, and opens your
+  browser.
 
 When it finishes, your browser opens **<http://localhost:3000>**.
 
 To stop everything later, double-click **`stop.bat`**.
+To re-launch the next day (no rebuild, ~10 seconds), double-click **`start.bat`**.
+To re-authenticate Schwab (every 7 days), double-click **`auth-schwab.bat`**.
 
 > **Always use the `.bat` files on Windows.** The `.command` files are macOS-only.
+> See [WINDOWS-INSTALL.md](../WINDOWS-INSTALL.md) for the full
+> beginner-friendly walkthrough, including OneDrive / antivirus
+> gotchas and a thorough troubleshooting table.
 
 ---
 

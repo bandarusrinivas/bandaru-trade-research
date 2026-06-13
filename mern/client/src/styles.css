@@ -792,6 +792,25 @@ body { margin: 0; background: var(--bg); color: var(--text); font-family: -apple
 .small { font-size: 11px; }
 h4.bt-sub, h4.gex-sub { margin: 12px 0 6px; font-size: 13px; color: var(--text); }
 
+/* ----- Chart signal strip — buy/sell arrows the chart class detected ----- */
+.chart-signal-strip {
+  display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
+  margin-top: 8px; padding: 6px 10px;
+  background: var(--panel-2); border: 1px solid var(--border); border-radius: 6px;
+}
+.chart-signal-strip .strip-label {
+  font-size: 11px; color: var(--muted); margin-right: 4px; text-transform: uppercase; letter-spacing: 0.05em;
+}
+.sig-chip {
+  font-family: ui-monospace, monospace; font-size: 11px;
+  padding: 3px 8px; border-radius: 10px;
+  border: 1px solid var(--border);
+  background: rgba(255,255,255,0.02);
+}
+.sig-chip.sig-buy  { color: var(--green); border-color: rgba(38,217,110,0.45); }
+.sig-chip.sig-sell { color: var(--pink);  border-color: rgba(239,79,107,0.45); }
+.sig-chip .sig-time { color: var(--muted); }
+
 /* ----- CPR readout under the chart ----- */
 .chart-wrap { display: flex; flex-direction: column; gap: 10px; }
 .cpr-readout { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; align-items: center; }
@@ -1041,8 +1060,63 @@ h4.bt-sub, h4.gex-sub { margin: 12px 0 6px; font-size: 13px; color: var(--text);
 .gxd-metric.em .gxd-metric-value { color: var(--gold); }
 .gxd-body { display: grid; grid-template-columns: 1fr 240px; gap: 8px; }
 @media (max-width: 900px) { .gxd-body { grid-template-columns: 1fr; } }
-.gxd-chart { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 6px; }
-.gxd-ladder { display: block; width: 100%; }
+.gxd-chart { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px; }
+.gxd-ladder { display: flex; flex-direction: column; gap: 6px; }
+.gxd-rung {
+  --rung-color: #e6edf3;
+  display: grid;
+  grid-template-columns: 200px 1fr 110px 84px;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 4px;
+  border-radius: 4px;
+  transition: background 0.15s;
+}
+.gxd-rung:hover { background: rgba(255, 255, 255, 0.025); }
+.gxd-rung-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--rung-color);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.gxd-rung-line {
+  height: 0;
+  border-top: 1.5px solid var(--rung-color);
+  opacity: 0.7;
+}
+.gxd-rung.is-dashed .gxd-rung-line { border-top-style: dashed; }
+.gxd-rung-dist {
+  font-size: 10.5px;
+  color: var(--muted);
+  font-family: ui-monospace, monospace;
+  text-align: right;
+}
+.gxd-rung-chip {
+  background: var(--rung-color);
+  color: #0d1117;
+  font-family: ui-monospace, monospace;
+  font-size: 12px;
+  font-weight: 800;
+  padding: 4px 8px;
+  border-radius: 3px;
+  text-align: right;
+}
+.gxd-rung.is-spot {
+  background: rgba(88, 166, 255, 0.07);
+  border: 1px solid rgba(88, 166, 255, 0.35);
+  padding: 8px 4px;
+}
+.gxd-rung.is-spot .gxd-rung-label { font-size: 12px; }
+.gxd-rung.is-spot .gxd-rung-line { border-top-width: 2px; opacity: 1; }
+.gxd-rung.is-spot .gxd-rung-chip { font-size: 13px; padding: 5px 8px; }
+@media (max-width: 720px) {
+  .gxd-rung { grid-template-columns: 140px 1fr 84px; }
+  .gxd-rung-dist { display: none; }
+}
 .gxd-side { display: flex; flex-direction: column; gap: 4px; }
 .gxd-side-row { background: var(--panel); border: 1px solid var(--border); border-radius: 5px; padding: 6px 9px; }
 .gxd-side-label { font-size: 9px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.3px; }

@@ -39,54 +39,51 @@ function SignalBox({ title, children, tone }) {
   );
 }
 
-// Vertical price-level map — the GEX walls, flip, VWAP, expected move + spot.
+// Vertical price-level "ladder" — the GEX walls, flip, VWAP, expected move
+// and current spot. Rendered as evenly-spaced ordinal rows sorted high→low.
+// Distance-from-spot in $ and % is shown on each row so the proportional
+// information (which the old SVG conveyed via Y position) isn't lost.
 function LevelLadder({ data }) {
-  const levels = [];
-  (data.call_walls || []).forEach((w) => levels.push({ label: w.label, price: w.strike, cls: "cw" }));
-  if (data.expected_move?.upper) levels.push({ label: "UPPER EXPECTED MOVE", price: data.expected_move.upper, cls: "em", dash: true });
-  if (data.flip_level != null) levels.push({ label: "GEX FLIP LEVEL", price: data.flip_level, cls: "flip" });
-  if (data.vwap != null) levels.push({ label: "VWAP", price: data.vwap, cls: "vwap" });
-  if (data.gamma_mid != null) levels.push({ label: "GAMMA MID (ZERO GAMMA)", price: data.gamma_mid, cls: "gmid", dash: true });
-  (data.put_walls || []).forEach((w) => levels.push({ label: w.label, price: w.strike, cls: "pw" }));
-  if (data.expected_move?.lower) levels.push({ label: "LOWER EXPECTED MOVE", price: data.expected_move.lower, cls: "emdn", dash: true });
+  const items = [];
+  (data.call_walls || []).forEach((w) => items.push({ label: w.label, price: w.strike, cls: "cw" }));
+  if (data.expected_move?.upper != null) items.push({ label: "UPPER EXPECTED MOVE", price: data.expected_move.upper, cls: "em", dash: true });
+  if (data.flip_level != null) items.push({ label: "GEX FLIP LEVEL", price: data.flip_level, cls: "flip" });
+  if (data.vwap != null) items.push({ label: "VWAP", price: data.vwap, cls: "vwap" });
+  if (data.gamma_mid != null) items.push({ label: "GAMMA MID (ZERO GAMMA)", price: data.gamma_mid, cls: "gmid", dash: true });
+  (data.put_walls || []).forEach((w) => items.push({ label: w.label, price: w.strike, cls: "pw" }));
+  if (data.expected_move?.lower != null) items.push({ label: "LOWER EXPECTED MOVE", price: data.expected_move.lower, cls: "emdn", dash: true });
+  if (data.spot != null) items.push({ label: `${data.ticker} SPOT`, price: data.spot, cls: "spot", isSpot: true });
 
-  const prices = [...levels.map((l) => l.price), data.spot].filter((p) => p != null);
-  if (!prices.length) return null;
-  let hi = Math.max(...prices), lo = Math.min(...prices);
-  const pad = (hi - lo) * 0.12 || 1;
-  hi += pad; lo -= pad;
+  if (!items.length) return null;
 
-  const W = 760, H = 460, padR = 92, padL = 12, padT = 14, padB = 14;
-  const y = (p) => padT + (1 - (p - lo) / (hi - lo)) * (H - padT - padB);
+  // Sort price descending so calls/upside sit on top, puts/downside on bottom.
+  items.sort((a, b) => b.price - a.price);
+
+  const spot = data.spot;
 
   return (
-    <svg className="gxd-ladder" viewBox={`0 0 ${W} ${H}`} width="100%" preserveAspectRatio="xMidYMid meet">
-      {levels.map((l, i) => {
-        const yy = y(l.price);
+    <div className="gxd-ladder">
+      {items.map((l, i) => {
         const col = LV_COLOR[l.cls];
+        const dist = spot != null ? l.price - spot : null;
+        const distPct = spot != null && spot !== 0 ? (dist / spot) * 100 : null;
+        const distStr = dist == null || l.isSpot
+          ? ""
+          : `${dist >= 0 ? "+" : ""}${dist.toFixed(2)} (${distPct >= 0 ? "+" : ""}${distPct.toFixed(2)}%)`;
         return (
-          <g key={i}>
-            <line x1={padL} x2={W - padR} y1={yy} y2={yy} stroke={col} strokeWidth="1.6"
-                  strokeDasharray={l.dash ? "6 4" : "none"} opacity="0.9" />
-            <text x={padL + 4} y={yy - 4} fill={col} fontSize="10" fontWeight="600">{l.label}</text>
-            <rect x={W - padR + 4} y={yy - 8} width={padR - 8} height="16" fill={col} rx="2" />
-            <text x={W - 8} y={yy + 4} fill="#0d1117" fontSize="10" fontWeight="700" textAnchor="end">
-              {l.price?.toFixed(2)}
-            </text>
-          </g>
+          <div
+            key={i}
+            className={`gxd-rung ${l.isSpot ? "is-spot" : ""} ${l.dash ? "is-dashed" : ""}`}
+            style={{ "--rung-color": col }}
+          >
+            <div className="gxd-rung-label">{l.label}</div>
+            <div className="gxd-rung-line" />
+            <div className="gxd-rung-dist">{distStr}</div>
+            <div className="gxd-rung-chip">{l.price.toFixed(2)}</div>
+          </div>
         );
       })}
-      {/* spot */}
-      <line x1={padL} x2={W - padR} y1={y(data.spot)} y2={y(data.spot)}
-            stroke={LV_COLOR.spot} strokeWidth="2.4" />
-      <text x={padL + 4} y={y(data.spot) - 4} fill={LV_COLOR.spot} fontSize="11" fontWeight="700">
-        {data.ticker} SPOT
-      </text>
-      <rect x={W - padR + 4} y={y(data.spot) - 9} width={padR - 8} height="18" fill={LV_COLOR.spot} rx="2" />
-      <text x={W - 8} y={y(data.spot) + 4} fill="#0d1117" fontSize="11" fontWeight="700" textAnchor="end">
-        {data.spot?.toFixed(2)}
-      </text>
-    </svg>
+    </div>
   );
 }
 

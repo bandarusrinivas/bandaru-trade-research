@@ -1,0 +1,17 @@
+{
+  "name": "discord-whatsapp-bridge",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Forward messages from selected Discord channels to a WhatsApp number via the Meta Cloud API.",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "discord.js": "^14.16.3",
+    "dotenv": "^16.4.5"
+  }
+}

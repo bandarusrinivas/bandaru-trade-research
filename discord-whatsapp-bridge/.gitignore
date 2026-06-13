@@ -1,0 +1,9 @@
+node_modules
+.env
+# Backup variants of .env that scripts here create on each run — they
+# contain the same Discord/WhatsApp tokens as .env itself and must
+# NEVER be committed. GitHub push-protection caught these once already.
+.env.backup-*
+.env.bak*
+.env.preauth-*
+*.log

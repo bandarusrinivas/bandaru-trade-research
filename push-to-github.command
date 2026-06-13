@@ -25,6 +25,43 @@ fi
 echo "→ Origin: $(git remote get-url origin)"
 echo "→ Branch: $(git rev-parse --abbrev-ref HEAD)"
 
+# ─── 2½. Auto-detect leaked-secrets situation ────────────────────────────
+# If any unpushed commit contains files matching the leaked-secret
+# patterns we know GitHub's secret-scanning will reject (.env.backup-*,
+# .env.bak-*, .env.preauth-*), there's no point continuing — every
+# push-to-github run will fail the same way. Reroute to fix-leaked-secrets
+# which resets to origin/main, removes the bad files, and pushes one
+# clean commit.
+LEAKED_FILES=$(git log --name-only --format= origin/main..HEAD 2>/dev/null \
+  | sort -u \
+  | grep -E '(^|/)\.env\.backup-|(^|/)\.env\.bak-|(^|/)\.env\.preauth-|/schwab_token\.json\.bak|/schwab_token\.json\.preauth-' \
+  || true)
+if [ -n "$LEAKED_FILES" ]; then
+  echo
+  printf '\033[1;31m✗ Unpushed commits contain files matching a leaked-secret pattern.\033[0m\n'
+  echo "  GitHub's secret-scanning will reject every push attempt until these are"
+  echo "  removed from the commit history. The leaked files are:"
+  echo "$LEAKED_FILES" | sed 's/^/    /'
+  echo
+  if [ -x "$PROJECT_ROOT/fix-leaked-secrets.command" ] || [ -f "$PROJECT_ROOT/fix-leaked-secrets.command" ]; then
+    echo "→ Routing to fix-leaked-secrets.command instead. It will:"
+    echo "    1) reset --soft to origin/main (undoes the bad commits, keeps changes)"
+    echo "    2) delete the leaked files from disk"
+    echo "    3) make one clean commit"
+    echo "    4) push"
+    echo
+    read -p "Proceed with the fix script? [Y/n] " yn
+    yn=${yn:-Y}
+    case "$yn" in
+      [Yy]*) exec bash "$PROJECT_ROOT/fix-leaked-secrets.command" ;;
+      *) echo "Aborted. Run 'bash fix-leaked-secrets.command' yourself."; exit 1 ;;
+    esac
+  else
+    echo "  fix-leaked-secrets.command is missing — clean up manually."
+    exit 1
+  fi
+fi
+
 # 3. Show what we're about to commit
 echo
 echo "=== Pending changes ==="
@@ -67,6 +104,28 @@ if [ "$CHANGE_COUNT" -gt 0 ]; then
   echo
   echo "→ git add -A"
   git add -A
+
+  # ── Safety net — refuse to commit any file matching a secret pattern.
+  # GitHub push-protection caught a Discord token leak from .env.backup-*
+  # files. This stops the bleeding at the COMMIT step instead of the
+  # push step, so you never get a rejected push again from this script.
+  DANGER=$(git diff --cached --name-only --diff-filter=AM | \
+           grep -E '(^|/)\.env$|\.env\.backup|\.env\.bak|\.env\.preauth-|schwab_token\.json$|schwab_token\.json\.bak|schwab_token\.json\.preauth-' || true)
+  if [ -n "$DANGER" ]; then
+    echo
+    echo "✗ REFUSING TO COMMIT — these staged files match a secret pattern:"
+    echo "$DANGER" | sed 's/^/    /'
+    echo
+    echo "  GitHub push-protection will reject this anyway. Either:"
+    echo "    a) Delete the files (preferred): rm <file> && git add -A"
+    echo "    b) Add them to .gitignore and 'git rm --cached <file>'"
+    echo "    c) If you genuinely meant to commit one of these (e.g. .env.example"
+    echo "       is FINE), un-stage with 'git restore --staged <file>' and re-run."
+    echo
+    echo "  Cancelling. No commit made; no push attempted."
+    exit 1
+  fi
+
   echo "→ git commit"
   git commit -m "$MSG"
 fi

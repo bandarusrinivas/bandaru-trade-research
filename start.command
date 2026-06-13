@@ -133,8 +133,12 @@ step "3. Starting the containers ($MODE data)"
       -f docker-compose.yml -f docker-compose.schwab.yml --profile schwab \
       up -d --build --force-recreate 2>&1 | sed 's/^/  /'
   else
+    # Yahoo mode — DATA_SOURCE=yahoo overrides the .env default, but we still
+    # include `--profile schwab` so the Schwab sidecar container is BUILT and
+    # STARTED. The server ignores it (DATA_SOURCE=yahoo), but the sidecar is
+    # ready for auth-schwab-docker.command to re-OAuth without a rebuild step.
     DATA_SOURCE=yahoo docker compose --env-file "$ROOT/.env" \
-      -f docker-compose.yml \
+      -f docker-compose.yml --profile schwab \
       up -d --build --force-recreate 2>&1 | sed 's/^/  /'
   fi
 )
@@ -157,26 +161,27 @@ else
 fi
 
 # ─────────────────────── 5. Verify Schwab data ─────────────────────
-# Only relevant in Schwab mode. If the token is rejected, offer to re-sign-in.
+# Only relevant in Schwab mode.
+#
+# Token-persistence policy: step 2 already validated the local Schwab token
+# (refresh-token age < 7 days). If we got here, the token IS still usable, so
+# a verify failure right now is almost always transient — containers still
+# warming up on a first build, sidecar mid-initialisation, a single rejected
+# request, etc. We do NOT re-prompt for sign-in in those cases; the circuit
+# breaker / Yahoo fallback handles it gracefully and the next page refresh
+# will pick up real-time data once the sidecar is fully up. Re-auth only
+# happens when the local token-age check itself fails (handled in step 2).
 SCHWAB_LIVE=0
 if [ "$MODE" = "schwab" ]; then
   step "5. Checking real-time Schwab data"
   if verify_schwab_live 40; then
     SCHWAB_LIVE=1
   else
-    case "$SCHWAB_LIVE_REASON" in
-      *token*|*Token*|*auth*|*OAuth*|*expir*|*Expir*)
-        echo
-        read -p "  Schwab rejected the token. Re-run the sign-in now? [Y/n] " ans
-        case "${ans:-Y}" in
-          [Nn]*) warn "Skipped — the dashboard will run on delayed Yahoo data." ;;
-          *)
-            "$ROOT/auth-schwab.command" || warn "Sign-in didn't finish."
-            step "5b. Re-checking with the new token"
-            sleep 12
-            verify_schwab_live 40 && SCHWAB_LIVE=1 || true ;;
-        esac ;;
-    esac
+    warn "Schwab data isn't flowing yet — running on delayed Yahoo for now."
+    info "Common on first build: the schwab container is still initialising."
+    info "Wait ~30s and refresh http://localhost:3000, or watch:"
+    info "  ( cd mern && docker compose logs -f schwab server )"
+    info "Your token is still valid; no sign-in is needed."
   fi
 else
   step "5. Data source"

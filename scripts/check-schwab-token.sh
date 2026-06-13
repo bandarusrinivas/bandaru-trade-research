@@ -40,6 +40,15 @@ try:
     if not ct:
         print("ERROR:no creation_timestamp")
         sys.exit(3)
+    # CRITICAL: also confirm the token actually has a refresh_token. Without it
+    # schwab-py can't auto-refresh the 30-min access_token, and every Schwab
+    # API call returns 401 even though the file is still "young" by age. This
+    # is the exact failure mode that left the dashboard empty for hours.
+    tok = t.get("token") or {}
+    refresh = tok.get("refresh_token")
+    if not refresh:
+        print("EXPIRED:no_refresh_token")
+        sys.exit(2)
     age_days = (datetime.datetime.now().timestamp() - ct) / 86400.0
     if age_days > 7:
         print(f"EXPIRED:{age_days:.1f}")
@@ -63,7 +72,11 @@ PY
     1) SCHWAB_TOKEN_STATUS="warn"
        SCHWAB_TOKEN_MSG="Token is ${SCHWAB_TOKEN_AGE_DAYS} days old — still works but renew soon" ;;
     2) SCHWAB_TOKEN_STATUS="expired"
-       SCHWAB_TOKEN_MSG="Token is ${SCHWAB_TOKEN_AGE_DAYS} days old — refresh token EXPIRED. Re-run auth-schwab.command." ;;
+       if [ "$SCHWAB_TOKEN_AGE_DAYS" = "no_refresh_token" ]; then
+         SCHWAB_TOKEN_MSG="Token file has no refresh_token — Schwab will reject every request. Re-run auth-schwab.command."
+       else
+         SCHWAB_TOKEN_MSG="Token is ${SCHWAB_TOKEN_AGE_DAYS} days old — refresh token EXPIRED. Re-run auth-schwab.command."
+       fi ;;
     *) SCHWAB_TOKEN_STATUS="error"
        SCHWAB_TOKEN_MSG="Could not parse $token_path: $output" ;;
   esac

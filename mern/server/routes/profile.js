@@ -19,7 +19,6 @@ import {
 
 const router = Router();
 
-// ───────────────────────── helpers ─────────────────────────
 const pct = (a, b) => (b ? ((a - b) / b) * 100 : 0);
 const round = (v, d = 2) => (v == null || !isFinite(v) ? null : Math.round(v * 10 ** d) / 10 ** d);
 const stddev = (arr) => {
@@ -37,7 +36,6 @@ function ratingFromMean(m) {
   return "STRONG SELL";
 }
 
-// ─────────────────────── technical scoring ─────────────────────────
 function shortTermAnalysis(closes, highs, lows, volumes) {
   const last = closes.at(-1);
   const e8  = ema(closes, 8).at(-1);
@@ -176,23 +174,17 @@ function longTermAnalysis(closes, highs, lows) {
   };
 }
 
-// ─────────────────── Position recommendation ───────────────────────
-// Synthesizes the technical outlooks + analyst + earnings into a single
-// actionable verdict: HOLD | ADD | TRIM | EXIT | AVOID.
 function positionRecommendation({ st, mt, lt, analyst, earnings, last, fiftyTwoHigh, fiftyTwoLow }) {
   const reasons = [];
-  // Weighted total: long-term carries most weight, then medium, then short
   const techScore = (lt.score || 0) * 0.5 + (mt.score || 0) * 0.3 + (st.score || 0) * 0.2;
   reasons.push(`Composite technical score: ${techScore.toFixed(0)} (LT 50% / MT 30% / ST 20%)`);
 
-  // Analyst tilt (mean rating 1-5: 1=Strong Buy, 5=Strong Sell)
   let analystTilt = 0;
   if (analyst?.rating_mean != null) {
-    analystTilt = (3 - analyst.rating_mean) * 15;  // +30 for Strong Buy, -30 for Strong Sell
+    analystTilt = (3 - analyst.rating_mean) * 15;
     reasons.push(`Analysts: ${analyst.recommendation} (mean ${analyst.rating_mean})`);
   }
 
-  // Upside vs target
   let upsideTilt = 0;
   if (analyst?.upside_pct != null) {
     if (analyst.upside_pct >= 10)        { upsideTilt = 15;  reasons.push(`Mean price target +${analyst.upside_pct}% above current`); }
@@ -201,7 +193,6 @@ function positionRecommendation({ st, mt, lt, analyst, earnings, last, fiftyTwoH
     else                                  { upsideTilt = -5;  reasons.push(`Mean price target ${analyst.upside_pct}% below current`); }
   }
 
-  // 52-week range positioning
   let rangeTilt = 0;
   if (fiftyTwoHigh && fiftyTwoLow && last) {
     const range = fiftyTwoHigh - fiftyTwoLow;
@@ -212,7 +203,6 @@ function positionRecommendation({ st, mt, lt, analyst, earnings, last, fiftyTwoH
     else                        { rangeTilt = 0;   reasons.push(`Price at ${pctOfRange.toFixed(0)}% of 52w range — mid-range`); }
   }
 
-  // Earnings risk
   let earningsTilt = 0;
   if (earnings?.surprise_pct != null) {
     if (earnings.surprise_pct >= 5)       { earningsTilt = 10;  reasons.push(`Last EPS beat by ${earnings.surprise_pct}%`); }
@@ -251,24 +241,19 @@ function positionRecommendation({ st, mt, lt, analyst, earnings, last, fiftyTwoH
   return { action, confidence, total_score: round(total), rationale, reasons };
 }
 
-// ─────────────────── Key levels (support/resistance/stop/target) ───
 function keyLevels({ closes, highs, lows, st, lt, fiftyTwoHigh, fiftyTwoLow, atr14 }) {
   const last = closes.at(-1);
   const sma50 = sma(closes, 50);
   const sma200 = sma(closes, 200);
   const pivots = calculatePivots(highs.at(-2), lows.at(-2), closes.at(-2));
 
-  // Support = highest level below current price, Resistance = lowest above
   const candidates = [sma50, sma200, fiftyTwoLow, fiftyTwoHigh, pivots.PP, pivots.S1, pivots.S2, pivots.R1, pivots.R2].filter((v) => v != null);
   const supports = candidates.filter((v) => v < last).sort((a, b) => b - a).slice(0, 2);
   const resistances = candidates.filter((v) => v > last).sort((a, b) => a - b).slice(0, 2);
 
-  // Stop = 2 * ATR below current for longs (or 50-SMA, whichever is closer)
   const atrStop = last - 2 * (atr14 || 0);
   const smaStop = sma50 ? Math.min(sma50, last * 0.95) : last * 0.93;
   const stopLong = Math.max(atrStop, smaStop);
-
-  // Target = analyst mean (if available, calculated outside), or 1.5 * (current - stop) above current
   const profitTarget = last + 1.5 * (last - stopLong);
 
   return {
@@ -286,19 +271,15 @@ function keyLevels({ closes, highs, lows, st, lt, fiftyTwoHigh, fiftyTwoLow, atr
   };
 }
 
-// ─────────────────── Risk factors (volatility, drawdown, etc.) ─────
 function riskFactors({ closes, beta, earnings, fiftyTwoHigh }) {
   const last = closes.at(-1);
-  // Historical volatility (annualized stdev of daily log returns × √252)
   const returns = [];
   for (let i = 1; i < closes.length; i++) returns.push(Math.log(closes[i] / closes[i - 1]));
   const hv = stddev(returns.slice(-30)) * Math.sqrt(252) * 100;
 
-  // Max drawdown over last year
   let peak = -Infinity, maxDD = 0;
   closes.slice(-252).forEach((c) => { peak = Math.max(peak, c); maxDD = Math.min(maxDD, (c - peak) / peak); });
 
-  // Distance from 52w high
   const distFromHigh = fiftyTwoHigh ? pct(last, fiftyTwoHigh) : null;
 
   const flags = [];
@@ -321,7 +302,6 @@ function riskFactors({ closes, beta, earnings, fiftyTwoHigh }) {
   };
 }
 
-// ─────────────────── Earnings (with forward estimates) ─────────────
 function extractEarnings(s) {
   const eHist = s.earnings?.earningsChart?.quarterly || [];
   const latest = eHist.at(-1);
@@ -331,7 +311,6 @@ function extractEarnings(s) {
   const earningsGrowth = s.financialData?.earningsGrowth ?? null;
   const revenueGrowth  = s.financialData?.revenueGrowth ?? null;
 
-  // Forward estimates from earningsTrend
   const trend = s.earningsTrend?.trend || [];
   const nextQ = trend.find((t) => t.period === "+1q") || trend.find((t) => t.period === "0q");
   const nextY = trend.find((t) => t.period === "+1y");
@@ -360,7 +339,6 @@ function extractEarnings(s) {
   };
 }
 
-// ─────────────────── Analyst with recent rating changes ─────────────
 function extractAnalyst(s, lastPrice) {
   const r = s.financialData || {};
   const tMean = r.targetMeanPrice ?? null;
@@ -370,11 +348,10 @@ function extractAnalyst(s, lastPrice) {
   const upside = tMean && lastPrice ? pct(tMean, lastPrice) : null;
   const trend = s.recommendationTrend?.trend?.[0] || {};
 
-  // Recent upgrades/downgrades
   const history = s.upgradeDowngradeHistory?.history || [];
   const recentRatings = history.slice(0, 6).map((u) => ({
     firm:     u.firm,
-    action:   u.action,     // "up", "down", "main", "init"
+    action:   u.action,
     from:     u.fromGrade,
     to:       u.toGrade,
     date:     u.epochGradeDate
@@ -402,7 +379,6 @@ function extractAnalyst(s, lastPrice) {
   };
 }
 
-// ─────────────────── Company future outlook ─────────────────────────
 function futureOutlook(earnings, analyst) {
   const lines = [];
 
@@ -439,7 +415,6 @@ function futureOutlook(earnings, analyst) {
   };
 }
 
-// ─────────────────── Short summary (~200 words) ─────────────────────
 function buildShortSummary({ ticker, name, price, change_pct, st, lt, earnings, analyst, news }) {
   const parts = [];
   const dailyDir = change_pct != null && change_pct >= 0 ? "up" : "down";
@@ -469,7 +444,6 @@ function buildShortSummary({ ticker, name, price, change_pct, st, lt, earnings, 
   return text;
 }
 
-// ─────────────────── Detailed multi-section summary ─────────────────
 function buildDetailedSummary({ ticker, name, price, change_pct, st, mt, lt, position, earnings, analyst, levels, risk, future }) {
   return {
     technical_outlook:
@@ -520,17 +494,19 @@ function buildDetailedSummary({ ticker, name, price, change_pct, st, mt, lt, pos
   };
 }
 
-// ──────────────────────────── the route ────────────────────────────
 router.get("/", async (req, res) => {
   const ticker = (req.query.ticker || "SPY").toString().toUpperCase();
   try {
     const [daily, profile] = await Promise.all([
-      data.getDailyBars(ticker, "2y"),  // 2y for proper 200-SMA + YoY
+      data.getDailyBars(ticker, "2y"),
       yahoo.getProfile(ticker),
     ]);
 
     if (!daily?.closes?.length) {
-      return res.status(404).json({ error: `No price data for ${ticker}` });
+      return res.status(200).json({
+        ticker, available: false,
+        error: `No price history available for ${ticker}.`,
+      });
     }
 
     const closes  = daily.closes;
@@ -541,12 +517,10 @@ router.get("/", async (req, res) => {
     const prevClose = closes.length > 1 ? closes.at(-2) : null;
     const changePct = prevClose ? pct(lastClose, prevClose) : 0;
 
-    // Technicals
     const st = shortTermAnalysis(closes, highs, lows, volumes);
     const mt = mediumTermAnalysis(closes, highs, lows);
     const lt = longTermAnalysis(closes, highs, lows);
 
-    // Yahoo profile pieces
     const earnings = extractEarnings(profile.summary || {});
     const analyst  = extractAnalyst(profile.summary || {}, lastClose);
     const sp = profile.summary?.summaryProfile || {};
@@ -558,7 +532,6 @@ router.get("/", async (req, res) => {
     const fiftyTwoLow  = detail.fiftyTwoWeekLow;
     const beta = stats.beta;
 
-    // Synthesized analysis layers
     const atr14 = atr(highs, lows, closes, 14);
     const position = positionRecommendation({
       st, mt, lt, analyst, earnings,
@@ -568,7 +541,6 @@ router.get("/", async (req, res) => {
     const risk = riskFactors({ closes, beta, earnings, fiftyTwoHigh });
     const future = futureOutlook(earnings, analyst);
 
-    // Summaries
     const summaryShort = buildShortSummary({
       ticker, name, price: lastClose, change_pct: changePct,
       st, lt, earnings, analyst, news: profile.news,
@@ -612,7 +584,7 @@ router.get("/", async (req, res) => {
       detailed: summaryDetailed,
     });
   } catch (e) {
-    res.status(500).json({ error: e.message, ticker });
+    res.status(200).json({ ticker, available: false, error: e?.message || String(e) });
   }
 });
 

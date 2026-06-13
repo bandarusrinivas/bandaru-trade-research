@@ -27,6 +27,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   notifications) for Fed / President / market-moving headlines.
 - **GEX Dashboard tab** — dealer gamma-exposure view (gamma flip level,
   call/put walls). Replays the prior trading session when the market is closed.
+- **VEX Dashboard tab** — dealer **Vanna** Exposure view, parallel to GEX.
+  Vanna walls, VEX flip level, dealer-bias labels in IV terms ("BUYS ON IV
+  RISE" / "SELLS ON IV RISE"). Same prior-session replay behaviour.
 - **Pre-Market tab** — unusual-volume scanner with drop-down column filters.
 - **Backtest tab (Strategy Lab)** — backtests single- and multi-leg option
   strategies; the input fields adapt to the selected strategy and premiums are

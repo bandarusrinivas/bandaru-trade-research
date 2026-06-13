@@ -1,0 +1,157 @@
+#!/usr/bin/env bash
+# bridge-ctl — control the Python notification watcher daemon (launchd LaunchAgent).
+#
+#   ./bridge-ctl install     install + start the daemon (runs continuously)
+#   ./bridge-ctl uninstall   stop + remove
+#   ./bridge-ctl restart     bounce the daemon (use after editing watcher.py)
+#   ./bridge-ctl status      show whether it's running, last exit code
+#   ./bridge-ctl logs        tail stdout/stderr logs
+#   ./bridge-ctl smoke       send a smoke test via the configured provider
+#   ./bridge-ctl once        run a single poll synchronously (for debugging)
+
+set -euo pipefail
+
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$(cd "$DIR/.." && pwd)"
+LABEL="com.bandaru.discord-watcher"
+PLIST_SRC="$DIR/$LABEL.plist"
+PLIST_DEST="$HOME/Library/LaunchAgents/$LABEL.plist"
+LOG_DIR="$DIR/logs"
+UID_NUM="$(id -u)"
+DOMAIN="gui/$UID_NUM"
+
+cmd="${1:-help}"
+
+detect_python() {
+  # Find a Python 3, then resolve it to its REAL executable path so that
+  # Full Disk Access can be granted to the actual binary (not /usr/bin/python3
+  # which is a stub that forwards to /Library/Developer/CommandLineTools/...).
+  local candidates=(/opt/homebrew/bin/python3 /usr/local/bin/python3 /usr/bin/python3)
+  local picked=""
+  for p in "${candidates[@]}"; do
+    if [ -x "$p" ]; then picked="$p"; break; fi
+  done
+  [ -z "$picked" ] && picked="$(command -v python3 || true)"
+  if [ -z "$picked" ]; then
+    echo "❌ python3 not found on PATH" >&2; exit 1
+  fi
+  # Ask Python where its real executable lives. This dereferences the stub.
+  local real
+  real="$("$picked" -c "import sys; print(sys.executable)" 2>/dev/null || true)"
+  if [ -n "$real" ] && [ -x "$real" ]; then
+    echo "$real"
+  else
+    echo "$picked"
+  fi
+}
+
+ensure_env() {
+  if [ ! -f "$PROJECT_DIR/.env" ]; then
+    echo "❌ Missing $PROJECT_DIR/.env  — fill in TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID first." >&2
+    exit 1
+  fi
+}
+
+install_plist() {
+  ensure_env
+  PYTHON="$(detect_python)"
+  echo "Using Python: $PYTHON"
+  mkdir -p "$LOG_DIR" "$HOME/Library/LaunchAgents"
+  sed -e "s|@@PROJECT_DIR@@|$PROJECT_DIR|g" \
+      -e "s|@@PYTHON@@|$PYTHON|g" \
+      "$PLIST_SRC" > "$PLIST_DEST"
+  # bootout any old instance (ignore errors), then bootstrap fresh.
+  launchctl bootout "$DOMAIN/$LABEL" 2>/dev/null || true
+  launchctl bootstrap "$DOMAIN" "$PLIST_DEST"
+  launchctl enable "$DOMAIN/$LABEL" 2>/dev/null || true
+  echo "✅ Installed and started: $LABEL"
+  echo "   plist: $PLIST_DEST"
+  echo
+  echo "── REQUIRED ONE-TIME STEP: grant Full Disk Access to Python ──"
+  echo "Without this, the SQLite open will fail."
+  echo
+  echo " 1. System Settings → Privacy & Security → Full Disk Access"
+  echo " 2. Click the +  (Touch ID / password prompt)"
+  echo " 3. Press ⌘⇧G in the file picker, paste:"
+  echo "       $PYTHON"
+  echo "    and press Return → click Open."
+  echo " 4. Toggle the new entry ON."
+  echo " 5. Re-run: $0 restart"
+  echo
+  echo "Then tail the logs:  $0 logs"
+}
+
+uninstall_plist() {
+  if [ -f "$PLIST_DEST" ]; then
+    launchctl bootout "$DOMAIN/$LABEL" 2>/dev/null || true
+    rm -f "$PLIST_DEST"
+    echo "🗑  Removed: $LABEL"
+  else
+    echo "Not installed."
+  fi
+}
+
+restart() {
+  if [ ! -f "$PLIST_DEST" ]; then
+    echo "Not installed yet — run: $0 install" >&2
+    exit 1
+  fi
+  launchctl kickstart -k "$DOMAIN/$LABEL"
+  echo "🔄 Restarted: $LABEL"
+}
+
+status() {
+  echo "── plist ──"
+  if [ -f "$PLIST_DEST" ]; then
+    echo "  installed at $PLIST_DEST"
+  else
+    echo "  NOT installed"
+    return
+  fi
+  echo
+  echo "── launchd state ──"
+  launchctl print "$DOMAIN/$LABEL" 2>/dev/null \
+    | grep -E "state|last exit|program|pid" \
+    | sed 's/^/  /' || echo "  (not loaded)"
+  echo
+  echo "── runtime state ──"
+  if [ -f "$HOME/.discord-wa-bridge/state.json" ]; then
+    cat "$HOME/.discord-wa-bridge/state.json"
+  else
+    echo "  state.json not yet created (first poll hasn't completed)"
+  fi
+}
+
+logs() {
+  mkdir -p "$LOG_DIR"
+  touch "$LOG_DIR/watcher.out.log" "$LOG_DIR/watcher.err.log"
+  echo "Tailing $LOG_DIR/watcher.out.log and watcher.err.log — Ctrl+C to stop."
+  echo
+  tail -n 50 -f "$LOG_DIR/watcher.out.log" "$LOG_DIR/watcher.err.log"
+}
+
+smoke() {
+  ensure_env
+  PYTHON="$(detect_python)"
+  "$PYTHON" "$DIR/watcher.py" --env "$PROJECT_DIR/.env" --smoke
+}
+
+once() {
+  ensure_env
+  PYTHON="$(detect_python)"
+  "$PYTHON" "$DIR/watcher.py" --env "$PROJECT_DIR/.env" --once
+}
+
+case "$cmd" in
+  install)   install_plist ;;
+  uninstall) uninstall_plist ;;
+  restart)   restart ;;
+  status)    status ;;
+  logs)      logs ;;
+  smoke)     smoke ;;
+  once)      once ;;
+  *)
+    sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//'
+    exit 1
+    ;;
+esac

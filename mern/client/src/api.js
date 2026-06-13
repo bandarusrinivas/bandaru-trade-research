@@ -19,6 +19,7 @@ export const getProfile   = (ticker)        => api.get("/profile",   { params: {
 export const getOptionDecay = (params)      => api.get("/option-decay", { params }).then((r) => r.data);
 export const getGamma     = (ticker)        => api.get("/gamma",     { params: { ticker } }).then((r) => r.data);
 export const getGexDashboard = (ticker)     => api.get("/gex-dashboard", { params: { ticker }, timeout: 45000 }).then((r) => r.data);
+export const getVexDashboard = (ticker)     => api.get("/vex-dashboard", { params: { ticker }, timeout: 45000 }).then((r) => r.data);
 export const getPivotStops = (ticker)       => api.get("/pivot-stops", { params: { ticker } }).then((r) => r.data);
 export const getOIFlow    = (ticker)        => api.get("/oi-flow",   { params: { ticker } }).then((r) => r.data);
 export const getBacktest  = (params) =>

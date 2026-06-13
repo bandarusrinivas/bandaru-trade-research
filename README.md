@@ -10,18 +10,25 @@ The platform is built on the **MERN stack** (MongoDB + Express + React + Node.js
 
 ## Run it
 
-### Easiest — double-click `start`
+### Easiest — double-click the launcher
 
-Just **two commands**, one per job. No menu, no separate steps.
+| Platform     | First-time install     | Start (daily)    | Stop             | Schwab re-auth        |
+| ------------ | ---------------------- | ---------------- | ---------------- | --------------------- |
+| **macOS**    | `start.command`        | `start.command`  | `stop.command`   | `auth-schwab.command` |
+| **Windows**  | **`install.bat`**      | `start.bat`      | `stop.bat`       | `auth-schwab.bat`     |
 
-| Platform | Start everything | Stop everything |
-|---|---|---|
-| **macOS** | `start.command` | `stop.command` |
-| **Windows** | `start.bat` | `stop.bat` |
+The Mac path uses `start.command` for both first-run and daily use — it
+detects what needs doing. The Windows path uses a dedicated
+**`install.bat`** for the one-time setup (8 automated prerequisite
+checks, `.env` creation, credential prompt, container build, browser
+launch), then `start.bat` for daily use (no rebuild — ~10 seconds).
 
-`start` does the whole job in one shot: it checks Docker (and launches Docker Desktop if it's not running), looks at your Schwab sign-in, **builds and starts every container, and opens the dashboard** at **http://localhost:3000**. `stop` tears it all down.
+Both flows: check Docker, look at your Schwab sign-in, build and start
+every container, open the dashboard at **<http://localhost:3000>**.
+`stop` tears it all down (your trade-journal data is preserved across
+restarts).
 
-**If a Schwab sign-in is needed**, `start` pauses and lets you choose:
+**If a Schwab sign-in is needed**, the launcher pauses and lets you choose:
 
 ```
   1) Sign in to Schwab now   — real-time data        (recommended)
@@ -29,23 +36,33 @@ Just **two commands**, one per job. No menu, no separate steps.
   3) Quit
 ```
 
-So one command handles every case: a valid token launches straight into real-time data, an expired token offers a sign-in or a Yahoo fallback, and no Schwab keys at all simply runs on Yahoo.
+So one launcher handles every case: a valid token launches straight into
+real-time data, an expired token offers a sign-in or a Yahoo fallback,
+and no Schwab keys at all simply runs on Yahoo.
 
 **Other root scripts (optional — you rarely need them):**
-- `auth-schwab.command` / `.bat` — force a fresh Schwab sign-in (`start` runs this for you when needed)
-- `cleanup.command` / `.bat` — delete disposable junk (caches, backups, stale build output)
-- `push-to-github.command` / `.bat` — staged commit + push
-- `install-windows.bat` — one-time prerequisite installer for Windows
+- `auth-schwab.command` / `.bat` — force a fresh Schwab sign-in (the launcher runs this for you when needed)
+- `cleanup.command` — delete disposable junk (caches, backups, stale build output) — Mac only
+- `push-to-github.command` — staged commit + push — Mac only
 
-**First-run note:** macOS Gatekeeper may block unsigned scripts — right-click → **Open** the first time.
+**First-run notes:**
+- **macOS** Gatekeeper may block unsigned scripts — right-click → **Open** the first time.
+- **Windows** SmartScreen may warn *"Windows protected your PC"* — click **More info → Run anyway**.
 
-> **New here?** **[docs/INSTALLATION.md](docs/INSTALLATION.md)** has the full
-> prerequisites and step-by-step setup for both Mac and Windows — Homebrew,
-> Docker Desktop, Git, Python — plus Schwab setup and a troubleshooting
-> section. **[docs/USER_GUIDE.md](docs/USER_GUIDE.md)** covers how to use every
-> tab once it's running. **[docs/ANALYSIS_ENGINE.md](docs/ANALYSIS_ENGINE.md)**
-> is the mechanic's manual — every indicator, formula and signal-generation
-> rule that drives the dashboard.
+> **New here?**
+> - **Windows users:** **[WINDOWS-INSTALL.md](WINDOWS-INSTALL.md)** is a
+>   complete, beginner-friendly Windows-only walkthrough. Step-by-step
+>   from "what is Docker?" through troubleshooting tables and OneDrive /
+>   antivirus gotchas. Read this first.
+> - **Mac users (or both):** **[docs/INSTALLATION.md](docs/INSTALLATION.md)**
+>   has the full prerequisites and setup for both platforms — Homebrew,
+>   Docker Desktop, Git — plus Schwab setup and a troubleshooting
+>   section. (Python is **not** required on Windows.)
+> - **[docs/USER_GUIDE.md](docs/USER_GUIDE.md)** covers how to use every
+>   tab once it's running.
+> - **[docs/ANALYSIS_ENGINE.md](docs/ANALYSIS_ENGINE.md)** is the
+>   mechanic's manual — every indicator, formula and signal-generation
+>   rule that drives the dashboard.
 
 ### Advanced — bare Docker (Yahoo data only)
 
@@ -62,7 +79,7 @@ For real-time Schwab data, use `start.command` / `start.bat` instead — that is
 
 ## What you get
 
-### Thirteen tabs in the dashboard
+### Fourteen tabs in the dashboard
 
 | Tab | What it does |
 |---|---|
@@ -70,6 +87,7 @@ For real-time Schwab data, use `start.command` / `start.bat` instead — that is
 | **🚨 Entry / Exit Alerts** | Pivot levels, 0DTE trade suggestions (Bull Call Break / Bear Put Break) with status badges and reasoning, plus projected next-day and next-week support/resistance levels. |
 | **🎯 Pro Signals** | Stacked EMA, ADX trend strength, MACD, RSI — daily timeframe. |
 | **🧲 GEX Dashboard** | Dealer gamma-exposure dashboard — gamma flip level, call/put walls and intraday positioning. Replays the prior trading session when the market is closed. |
+| **🌀 VEX Dashboard** | Dealer **vanna**-exposure dashboard — parallel to GEX but built around IV sensitivity (∂Δ/∂σ): vanna walls, VEX flip level, "BUYS / SELLS ON IV RISE" dealer-bias labels. Same prior-session replay. |
 | **👀 Watchlist** | Multi-symbol live quotes, click-to-switch ticker, persists across sessions. |
 | **🔍 Screener** | ThinkOrSwim-style multi-column grid. A drop-down universe picker (top US large-caps + major indexes) feeds setups — pivots, trend, RSI, ADX, RVol, breakout, opportunity score — with click-to-filter column headers. Runs through a bounded-concurrency pool so the data source isn't rate-limited. |
 | **🌅 Pre-Market** | Unusual-volume scanner for pre-market movers, with drop-down column filters. |
@@ -102,12 +120,14 @@ For real-time Schwab data, use `start.command` / `start.bat` instead — that is
 ```
 bandaru-trade-research/
 ├── README.md, LICENSE, VERSION, .env.example       ← top-level docs + config
+├── WINDOWS-INSTALL.md                              ← beginner-friendly Windows guide
 ├── start.command  / start.bat                      ← launch everything (auth included)
 ├── stop.command   / stop.bat                       ← stop everything
 ├── auth-schwab.command / auth-schwab.bat           ← Schwab sign-in (start runs it for you)
-├── cleanup.command / cleanup.bat                   ← delete disposable junk
-├── push-to-github.command / push-to-github.bat     ← dev workflow
-├── install-windows.bat                             ← Windows prerequisite installer
+├── install.bat                                     ← Windows first-time installer (prereq check + .env + build)
+├── cleanup.command                                 ← delete disposable junk (Mac)
+├── package-release.command                         ← package a shareable Docker artifact
+├── push-to-github.command                          ← dev workflow (Mac)
 │
 ├── docs/                                           ← USER_GUIDE, CHANGELOG, etc.
 ├── mern/                                           ← MERN application (primary)
@@ -119,10 +139,18 @@ bandaru-trade-research/
 │   └── src/clients/schwab_client.py
 └── scripts/                                        ← internal helpers (sourced by launchers)
     ├── _shared.sh
-    └── check-schwab-token.sh
+    ├── check-schwab-token.sh
+    └── windows/                                    ← PowerShell scripts backing the .bat files
+        ├── install.ps1                             ← prereq check + .env + build
+        ├── start.ps1                               ← daily launcher
+        ├── stop.ps1                                ← `docker compose down`
+        └── auth-schwab.ps1                         ← Schwab OAuth (in-container)
 ```
 
-The only two scripts you ever run are **`start`** and **`stop`**. Everything else is either an occasional helper (`auth-schwab`, `cleanup`, `push-to-github`) or an internal building block under `scripts/`.
+The scripts you ever double-click are **`start`** and **`stop`** (Mac) or
+**`install` / `start` / `stop`** (Windows). Everything else is either an
+occasional helper (`auth-schwab`) or an internal building block under
+`scripts/`.
 
 ---
 

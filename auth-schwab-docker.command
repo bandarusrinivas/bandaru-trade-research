@@ -33,12 +33,14 @@ if ! docker ps --format '{{.Names}}' 2>/dev/null | grep -q '^bandaru-schwab$'; t
 fi
 echo "✓ bandaru-schwab container is running"
 
-# ---- 2. Back up any existing token so a FRESH manual flow runs -------
-echo "→ Backing up any existing token inside the container…"
+# ---- 2. Copy (NOT move) any existing token to a backup so a failed OAuth
+# ----    attempt doesn't leave you with no active token. start.command's
+# ----    token-age check needs the file to still be there if OAuth fails.
+echo "→ Snapshotting the existing token (non-destructive)…"
 docker exec bandaru-schwab sh -c \
   'if [ -f /tokens/schwab_token.json ]; then \
-     mv /tokens/schwab_token.json "/tokens/schwab_token.json.preauth-$(date +%Y%m%d-%H%M%S).bak"; \
-     echo "  old token backed up"; \
+     cp /tokens/schwab_token.json "/tokens/schwab_token.json.preauth-$(date +%Y%m%d-%H%M%S).bak"; \
+     echo "  existing token snapshotted; original kept in place"; \
    else echo "  no existing token — clean start"; fi' || true
 
 cat <<'EOF'
@@ -65,6 +67,12 @@ if [ "$RC" -ne 0 ]; then
   echo "✗ OAuth did not complete (exit code $RC). See the messages above."
   echo "  Most common cause: the redirect URL was pasted incomplete, or the"
   echo "  code expired (~30s limit). Re-run this script and move quickly."
+  # The original token is still in place because we COPIED (not moved) the
+  # backup at step 2 — so start.command will still find a usable token if
+  # the previous one hasn't expired. No need to restore anything.
+  echo
+  echo "  Your previous token (if any) is still active. start.command will"
+  echo "  pick it up as long as it's < 7 days old."
   read -p "Press Return to close… " _ ; exit 1
 fi
 

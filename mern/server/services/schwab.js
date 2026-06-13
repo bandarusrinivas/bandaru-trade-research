@@ -45,6 +45,18 @@ async function memo(key, ttl, fn) {
       const value = await fn();
       CACHE.set(key, { value, expiresAt: Date.now() + ttl });
       return value;
+    } catch (e) {
+      // Stale-cache fallback — when Schwab's API blips and we have a prior
+      // cached value, serve it. The data.js circuit breaker still counts
+      // this as a failure (it sees the eventual fall-through), but this call
+      // gets useful data instead of an error — which is what the dashboard
+      // needs to never show empty panels.
+      if (hit) {
+        console.warn(`[schwab] ${key}: upstream failed (${e?.message}); serving stale cache`);
+        CACHE.set(key, { value: hit.value, expiresAt: now + Math.min(ttl, 30_000), stale: true });
+        return hit.value;
+      }
+      throw e;
     } finally {
       INFLIGHT.delete(key);
     }

@@ -41,13 +41,28 @@ class SchwabClient:
                 "SCHWAB_API_KEY and SCHWAB_APP_SECRET must be set in .env"
             )
 
-        if os.path.exists(self.token_path):
-            self.client = client_from_token_file(
-                token_path=self.token_path,
-                api_key=self.api_key,
-                app_secret=self.app_secret,
-            )
-        elif interactive:
+        # IMPORTANT: when interactive=True the caller is explicitly asking us
+        # to RE-AUTHENTICATE. We must do OAuth regardless of whether a token
+        # file exists — otherwise a stale/broken token (e.g. missing
+        # refresh_token, revoked server-side) silently shadows the OAuth flow
+        # and the first API call dies with InvalidTokenError. The previous
+        # ordering (file-first, then interactive) made the auth-schwab*.command
+        # scripts effectively no-ops whenever a corrupt token was on disk.
+        if interactive:
+            # Don't let a stale token file shadow the OAuth flow. We back it
+            # up rather than delete it, in case OAuth is aborted partway and
+            # the user wants to recover the prior token state.
+            if os.path.exists(self.token_path):
+                from datetime import datetime as _dt
+                backup_path = (
+                    f"{self.token_path}.preauth-"
+                    f"{_dt.utcnow().strftime('%Y%m%d-%H%M%S')}.bak"
+                )
+                try:
+                    os.replace(self.token_path, backup_path)
+                    print(f"  prior token moved aside → {backup_path}")
+                except OSError as e:
+                    print(f"  could not back up old token: {e} — proceeding anyway")
             # Manual flow — works with port-less callbacks like https://127.0.0.1
             # (easy_client / client_from_login_flow require a port in the URL
             # because they spin up a local HTTPS listener). With manual flow,
@@ -58,6 +73,12 @@ class SchwabClient:
                 app_secret=self.app_secret,
                 callback_url=self.callback_url,
                 token_path=self.token_path,
+            )
+        elif os.path.exists(self.token_path):
+            self.client = client_from_token_file(
+                token_path=self.token_path,
+                api_key=self.api_key,
+                app_secret=self.app_secret,
             )
         else:
             raise RuntimeError(
@@ -123,22 +144,15 @@ class SchwabClient:
     def get_today_intraday(
         self, ticker: str = "SPY", frequency: int = 5
     ) -> list[dict]:
-        """
-        Returns today's intraday candles. schwab-py 1.4+ uses named methods
-        per-interval (no `frequency=` kwarg), so dispatch on the requested
-        minute interval.
-        """
         et = pytz.timezone("America/New_York")
         end_dt = datetime.now(et)
         start_dt = end_dt.replace(hour=4, minute=0, second=0, microsecond=0)
-        method = {
-            1:  self.client.get_price_history_every_minute,
-            5:  self.client.get_price_history_every_five_minutes,
-            10: self.client.get_price_history_every_ten_minutes,
-            15: self.client.get_price_history_every_fifteen_minutes,
-            30: self.client.get_price_history_every_thirty_minutes,
-        }.get(int(frequency), self.client.get_price_history_every_five_minutes)
-        resp = method(ticker, start_datetime=start_dt, end_datetime=end_dt)
+        resp = self.client.get_price_history_every_minute(
+            ticker,
+            start_datetime=start_dt,
+            end_datetime=end_dt,
+            frequency=frequency,
+        )
         resp.raise_for_status()
         return (resp.json() or {}).get("candles", []) or []
 
@@ -202,43 +216,3 @@ class SchwabClient:
                             }
                         )
         return {"underlying_price": underlying_price, "contracts": flat}
-
-    def get_movers(self, index: str = "$SPX") -> dict:
-        """Top market movers for an index via the Schwab Movers API.
-
-        `index` is a Schwab movers symbol-id: $SPX (S&P 500), $COMPX (Nasdaq
-        Composite), $DJI (Dow), NYSE, NASDAQ. Returns the screener list
-        normalized so the Node layer can render it without depending on
-        Schwab's exact field names (which vary by API version).
-        """
-        # Enum-by-value lookup is version-robust: the API symbol-id string
-        # ($SPX, $COMPX, …) is the enum's value in every schwab-py release.
-        idx_enum = self.client.Movers.Index(index)
-        resp = self.client.get_movers(idx_enum)
-        resp.raise_for_status()
-        data = resp.json()
-
-        if isinstance(data, list):
-            screeners = data
-        elif isinstance(data, dict):
-            screeners = data.get("screeners") or data.get("movers") or []
-        else:
-            screeners = []
-
-        movers: list[dict] = []
-        for s in screeners:
-            if not isinstance(s, dict):
-                continue
-            movers.append({
-                "symbol": s.get("symbol"),
-                "description": s.get("description") or s.get("companyName"),
-                "last": s.get("lastPrice", s.get("last")),
-                "change": s.get("netChange", s.get("change")),
-                "change_pct": s.get(
-                    "netPercentChange",
-                    s.get("netPercentChangeInDouble", s.get("changePct")),
-                ),
-                "volume": s.get("totalVolume", s.get("volume")),
-                "direction": s.get("direction"),
-            })
-        return {"index": index, "movers": movers}

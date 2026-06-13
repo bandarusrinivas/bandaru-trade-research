@@ -49,13 +49,17 @@ if ! python -c "import schwab, dotenv" 2>/dev/null; then
   pip install --quiet -r requirements.txt
 fi
 
-# --- back up any existing token before overwriting --------------------------
+# --- snapshot the existing token (NON-DESTRUCTIVE) -------------------------
+# Earlier versions did `rm -f schwab_token.json` here. If the OAuth then
+# failed (dotenv import error, expired code, wrong URL paste, etc.), you
+# were left with no active token — start.command's next run had to prompt
+# again. We now COPY only, so a failed OAuth attempt leaves your previous
+# valid token in place and start.command keeps using it until it actually
+# ages past 7 days.
 if [ -f "schwab_token.json" ]; then
   BACKUP="schwab_token.json.bak-$(date +%Y%m%d-%H%M%S)"
   cp schwab_token.json "$BACKUP"
-  echo "→ Existing token backed up to $BACKUP"
-  echo "→ Removing old token so the manual flow runs fresh"
-  rm -f schwab_token.json
+  echo "→ Existing token snapshotted to $BACKUP (original kept in place)"
 fi
 
 # --- run the manual OAuth flow ---------------------------------------------

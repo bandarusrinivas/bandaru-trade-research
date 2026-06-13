@@ -1,15 +1,25 @@
 // BandaruChart — multi-pane canvas chart (price + EMA + Volume + MACD + TTM Squeeze).
 // Pure-JS class, ported from the Python static/js/chart.js. Used by ChartAnalysis.jsx.
 
+// Tuned for a TradingView / ThinkOrSwim feel: muted grid, vibrant
+// candles, distinct colors per overlay line, high-contrast labels.
 const COLORS = {
-  grid: "#2a313a", axis: "#97a1ab",
-  bull: "#26d96e", bear: "#ff7a8c",
-  pivotPP: "#ffffff", pivotR: "#ff7a8c", pivotS: "#26d96e",
-  cprBand: "rgba(124,154,255,0.14)", cprEdge: "#7c9aff", cprPivot: "#c7a3ff",
-  ema8: "#00d4ff", ema21: "#58a6ff", ema50: "#ff7a8c",
+  grid: "#1e252e", gridMajor: "#2a323d", axis: "#b8c0cc",
+  bg: "#0b0f15",
+  bull: "#26d96e", bear: "#ef4f6b",
+  pivotPP: "#ffd966", pivotR: "#ff7a8c", pivotS: "#26d96e",
+  cprBand: "rgba(124,154,255,0.10)", cprEdge: "#7c9aff", cprPivot: "#c7a3ff",
+  // EMA stack: warm-yellow for 9 (fastest), cyan for 21, orange for 200 (slow trend).
+  ema9:   "#ffd966",
+  ema21:  "#00d4ff",
+  ema200: "#ff8c42",
+  vwap:   "#c084fc",  // distinct purple so VWAP doesn't blur into the EMAs
   macdLine: "#58a6ff", macdSignal: "#ff8c00",
   macdHistBull: "rgba(38,217,110,0.7)", macdHistBear: "rgba(255,122,140,0.7)",
-  volBull: "rgba(38,217,110,0.35)", volBear: "rgba(255,122,140,0.35)",
+  volBull: "rgba(38,217,110,0.35)", volBear: "rgba(239,79,107,0.35)",
+  // Signal markers
+  buyFill:  "#26d96e", buyEdge: "#ffffff",
+  sellFill: "#ef4f6b", sellEdge: "#ffffff",
 };
 
 // ---------- Indicator helpers ----------
@@ -38,6 +48,66 @@ function computeMACD(closes, fast = 12, slow = 26, sigP = 9) {
   }
   const hist = macd.map((v, i) => v != null && signal[i] != null ? v - signal[i] : null);
   return { macd, signal, hist };
+}
+
+// Cumulative session VWAP. Resets when the ET date changes between bars.
+// The "ET date" comes from the bar timestamp converted to America/New_York —
+// this is what makes overnight + multi-day intraday charts produce the
+// expected piecewise-VWAP that traders use.
+function computeVWAP(bars) {
+  const n = bars.length;
+  const out = new Array(n).fill(null);
+  let cumPV = 0, cumV = 0, curDate = null;
+  for (let i = 0; i < n; i++) {
+    const b = bars[i];
+    const d = new Date(b.t);
+    // ET date key — "YYYY-MM-DD" via toLocaleDateString in NY tz
+    const etDate = d.toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+    if (etDate !== curDate) { cumPV = 0; cumV = 0; curDate = etDate; }
+    const tp = (b.h + b.l + b.c) / 3;
+    const v = b.v || 0;
+    cumPV += tp * v;
+    cumV  += v;
+    out[i] = cumV > 0 ? cumPV / cumV : null;
+  }
+  return out;
+}
+
+// Trend stack at bar i: true UP if close > ema9 > ema21 > vwap > ema200.
+// Inverse for DOWN. Anything else is neutral. Pivot-level signals only
+// fire in a confirmed trend — otherwise pivots are just zones, not setups.
+function trendAt(i, closes, e9, e21, e200, vwapArr) {
+  if (closes[i] == null) return "neutral";
+  const c = closes[i], a = e9[i], b = e21[i], v = vwapArr[i], d = e200[i];
+  if ([a, b, v, d].some((x) => x == null)) return "neutral";
+  if (c > a && a > b && b > v && v > d) return "up";
+  if (c < a && a < b && b < v && v < d) return "down";
+  return "neutral";
+}
+
+// Buy/sell markers fire when an in-trend bar TOUCHES a pivot level.
+// "Touch" = the pivot price falls within the bar's intrabar range [low, high].
+// Up-trend touch of any support (PP, S1, S2, S3) → BUY arrow.
+// Down-trend touch of any resistance (PP, R1, R2, R3) → SELL arrow.
+// At most one marker per bar to keep the chart readable.
+function detectPivotSignals(bars, pivots, trends) {
+  const sigs = [];
+  if (!pivots) return sigs;
+  const supports    = ["PP", "S1", "S2", "S3"].filter((k) => pivots[k] != null);
+  const resistances = ["PP", "R1", "R2", "R3"].filter((k) => pivots[k] != null);
+  for (let i = 1; i < bars.length; i++) {
+    const b = bars[i];
+    if (b == null) continue;
+    if (trends[i] === "up") {
+      const hit = supports.find((k) => b.l <= pivots[k] && pivots[k] <= b.h);
+      if (hit) { sigs.push({ i, type: "buy", level: hit, price: pivots[hit] }); continue; }
+    }
+    if (trends[i] === "down") {
+      const hit = resistances.find((k) => b.l <= pivots[k] && pivots[k] <= b.h);
+      if (hit) { sigs.push({ i, type: "sell", level: hit, price: pivots[hit] }); }
+    }
+  }
+  return sigs;
 }
 
 function computeHeikinAshi(bars) {
@@ -74,6 +144,17 @@ export class BandaruChart {
     // can't be removed, which would leak the instance if the chart is rebuilt).
     this._onWheelBound = (e) => this._onWheel(e);
     this.canvas.addEventListener("wheel", this._onWheelBound, { passive: false });
+    // Re-measure whenever the canvas's box changes — fixes the case where the
+    // canvas had zero size at construction (parent not yet laid out) and the
+    // case where the user resizes the window after the chart is mounted.
+    // Without this, draw() runs against a stale w/h of 0 and renders nothing.
+    if (typeof window !== "undefined" && "ResizeObserver" in window) {
+      this._ro = new ResizeObserver(() => {
+        this._setupHiDPI();
+        this.draw();
+      });
+      this._ro.observe(this.canvas);
+    }
   }
 
   // Detach DOM listeners so the instance can be garbage-collected. Call this
@@ -82,6 +163,10 @@ export class BandaruChart {
     if (this._onWheelBound) {
       this.canvas.removeEventListener("wheel", this._onWheelBound);
       this._onWheelBound = null;
+    }
+    if (this._ro) {
+      try { this._ro.disconnect(); } catch (_e) { /* ignore */ }
+      this._ro = null;
     }
   }
 
@@ -141,11 +226,49 @@ export class BandaruChart {
     return this.candleStyle === "heikin" ? computeHeikinAshi(this.bars) : this.bars;
   }
 
+  // Return the buy/sell signals computed on the most recent draw, enriched
+  // with the bar timestamp so the React layer can render a signal list.
+  // Empty array if nothing fired (or before the first draw).
+  getSignals() {
+    const sigs = this._lastSignals || [];
+    return sigs.map((s) => ({
+      ...s,
+      time: this.bars[s.i]?.t || null,
+    }));
+  }
+
+  // Public setter for an empty-state message — ChartAnalysis flips this when
+  // /api/candles returns empty bars or an error. Without it, an empty
+  // bars array leaves the canvas pure-black and looks broken.
+  setStatus(text) {
+    this._statusMsg = text || null;
+    this.draw();
+  }
+
   // ---------- The big draw ----------
   draw() {
+    // Re-measure each draw — handles the case where the canvas was 0×0 at
+    // construction time (parent flexbox not yet laid out) and we now have a
+    // real size, plus any container resize since the last draw.
+    const rect = this.canvas.getBoundingClientRect();
+    if (rect.width > 0 && (Math.abs(rect.width - this.w) > 0.5 || Math.abs(rect.height - this.h) > 0.5)) {
+      this._setupHiDPI();
+    }
     const c = this.ctx;
     c.clearRect(0, 0, this.w, this.h);
-    if (!this.bars.length) return;
+    if (!this.bars.length) {
+      // No data — render a centered status message instead of leaving the
+      // canvas blank. Tells the user we're loading / why nothing is drawn.
+      const msg = this._statusMsg || "Waiting for chart data…";
+      c.fillStyle = "#97a1ab";
+      c.font = "14px -apple-system, sans-serif";
+      c.textAlign = "center";
+      c.textBaseline = "middle";
+      c.fillText(msg, this.w / 2, this.h / 2);
+      c.textAlign = "left";
+      c.textBaseline = "alphabetic";
+      return;
+    }
 
     // Layout: price | volume | macd | ttm (top-to-bottom)
     const RIGHT = 70, BOTTOM = 22;
@@ -275,17 +398,26 @@ export class BandaruChart {
       c.fillRect(cx - candleW / 2, bodyTop, candleW, bodyH);
     }
 
-    // EMAs (always from real closes)
+    // ---- Overlay lines: 9/21/200 EMA + VWAP ----
+    // The user's signal stack:  close > EMA9 > EMA21 > VWAP > EMA200  =  UP
+    //                           close < EMA9 < EMA21 < VWAP < EMA200  =  DOWN
+    // These four series + the close are what feeds the trend gate below.
     const realCloses = this.bars.map((b) => b.c);
-    const emas = [
-      { period: 8,  color: COLORS.ema8 },
-      { period: 21, color: COLORS.ema21 },
-      { period: 50, color: COLORS.ema50 },
+    const e9   = ema(realCloses, 9);
+    const e21  = ema(realCloses, 21);
+    const e200 = ema(realCloses, 200);
+    const vwapArr = computeVWAP(this.bars);
+
+    const overlays = [
+      { label: "EMA 9",   series: e9,      color: COLORS.ema9,   width: 1.6 },
+      { label: "EMA 21",  series: e21,     color: COLORS.ema21,  width: 1.6 },
+      { label: "VWAP",    series: vwapArr, color: COLORS.vwap,   width: 1.8, dash: [4, 3] },
+      { label: "EMA 200", series: e200,    color: COLORS.ema200, width: 2.0 },
     ];
-    c.lineWidth = 1.5;
-    for (const { period, color } of emas) {
-      const series = ema(realCloses, period);
-      c.strokeStyle = color; c.beginPath();
+    for (const { series, color, width, dash } of overlays) {
+      c.strokeStyle = color; c.lineWidth = width;
+      if (dash) c.setLineDash(dash); else c.setLineDash([]);
+      c.beginPath();
       let started = false;
       for (let i = 0; i < series.length; i++) {
         if (series[i] == null) continue;
@@ -295,26 +427,97 @@ export class BandaruChart {
       }
       c.stroke();
     }
+    c.setLineDash([]);
 
-    // Buy/sell arrows on EMA 8/21 cross
-    const e8 = ema(realCloses, 8), e21 = ema(realCloses, 21);
-    const aSize = Math.max(5, Math.min(9, barW));
-    for (let i = 1; i < this.bars.length; i++) {
-      if (e8[i - 1] == null || e21[i - 1] == null || e8[i] == null || e21[i] == null) continue;
-      const prev = e8[i - 1] - e21[i - 1];
-      const cur  = e8[i] - e21[i];
-      const cx = xBar(i);
-      if (prev <= 0 && cur > 0) {
-        c.fillStyle = COLORS.bull;
-        const y = yPrice(this.bars[i].l) + aSize * 0.6;
-        c.beginPath(); c.moveTo(cx, y); c.lineTo(cx - aSize / 2, y + aSize); c.lineTo(cx + aSize / 2, y + aSize); c.closePath(); c.fill();
-      } else if (prev >= 0 && cur < 0) {
-        c.fillStyle = COLORS.bear;
-        const y = yPrice(this.bars[i].h) - aSize * 0.6;
-        c.beginPath(); c.moveTo(cx, y); c.lineTo(cx - aSize / 2, y - aSize); c.lineTo(cx + aSize / 2, y - aSize); c.closePath(); c.fill();
+    // ---- Buy / Sell signals at pivot levels (in-trend touches) ----
+    // Implements the user's spec: "buy signal NOT showing when it went to
+    // support level 3" — previous build only fired on EMA cross, never on
+    // a pivot touch. Now every PP/S1/S2/S3 touch during a confirmed up-trend
+    // produces a BUY arrow below the candle; every PP/R1/R2/R3 touch during
+    // a confirmed down-trend produces a SELL arrow above it.
+    const trends = new Array(this.bars.length);
+    for (let i = 0; i < this.bars.length; i++) {
+      trends[i] = trendAt(i, realCloses, e9, e21, e200, vwapArr);
+    }
+    const signals = detectPivotSignals(this.bars, this.pivots, trends);
+    this._lastSignals = signals;  // exposed via getSignals() for the UI panel
+    const aSize = Math.max(7, Math.min(11, barW * 1.1));
+    for (const sig of signals) {
+      const cx = xBar(sig.i);
+      const bar = this.bars[sig.i];
+      if (sig.type === "buy") {
+        const y = yPrice(bar.l) + aSize * 0.6;
+        c.fillStyle = COLORS.buyFill;
+        c.strokeStyle = COLORS.buyEdge; c.lineWidth = 1;
+        c.beginPath();
+        c.moveTo(cx, y);
+        c.lineTo(cx - aSize / 2, y + aSize);
+        c.lineTo(cx + aSize / 2, y + aSize);
+        c.closePath(); c.fill(); c.stroke();
+        // Tiny label so the trader can see WHICH support fired.
+        c.fillStyle = COLORS.buyEdge;
+        c.font = "bold 9px -apple-system, sans-serif";
+        c.textAlign = "center";
+        c.fillText(sig.level, cx, y + aSize + 10);
+        c.textAlign = "left";
+      } else {
+        const y = yPrice(bar.h) - aSize * 0.6;
+        c.fillStyle = COLORS.sellFill;
+        c.strokeStyle = COLORS.sellEdge; c.lineWidth = 1;
+        c.beginPath();
+        c.moveTo(cx, y);
+        c.lineTo(cx - aSize / 2, y - aSize);
+        c.lineTo(cx + aSize / 2, y - aSize);
+        c.closePath(); c.fill(); c.stroke();
+        c.fillStyle = COLORS.sellEdge;
+        c.font = "bold 9px -apple-system, sans-serif";
+        c.textAlign = "center";
+        c.fillText(sig.level, cx, y - aSize - 3);
+        c.textAlign = "left";
       }
     }
     c.restore();
+
+    // ---- Legend overlay (top-left) — which color is which line ----
+    // ThinkOrSwim / TradingView convention: small floating panel naming the
+    // overlays + their current value at the last bar.
+    const legendItems = [
+      { label: "EMA 9",   color: COLORS.ema9,   v: e9.at(-1) },
+      { label: "EMA 21",  color: COLORS.ema21,  v: e21.at(-1) },
+      { label: "VWAP",    color: COLORS.vwap,   v: vwapArr.at(-1) },
+      { label: "EMA 200", color: COLORS.ema200, v: e200.at(-1) },
+    ];
+    c.font = "bold 11px -apple-system, sans-serif";
+    let lx = 8, ly = 8;
+    const rowH = 16, swatchW = 14;
+    // Translucent background so the legend stays readable over candles.
+    const legendW = 130, legendH = rowH * legendItems.length + 8;
+    c.fillStyle = "rgba(11,15,21,0.78)";
+    c.strokeStyle = COLORS.gridMajor;
+    c.fillRect(lx, ly, legendW, legendH);
+    c.strokeRect(lx, ly, legendW, legendH);
+    for (let i = 0; i < legendItems.length; i++) {
+      const it = legendItems[i];
+      const ry = ly + 6 + i * rowH;
+      c.fillStyle = it.color;
+      c.fillRect(lx + 6, ry + 3, swatchW, 4);
+      c.fillStyle = "#e6edf3";
+      const valTxt = it.v != null && isFinite(it.v) ? it.v.toFixed(2) : "—";
+      c.fillText(`${it.label}  ${valTxt}`, lx + 6 + swatchW + 6, ry + 10);
+    }
+
+    // Trend badge — at-a-glance current stack state.
+    const lastTrend = trends[trends.length - 1];
+    if (lastTrend !== "neutral") {
+      const txt = lastTrend === "up" ? "UPTREND" : "DOWNTREND";
+      const col = lastTrend === "up" ? COLORS.bull : COLORS.bear;
+      c.font = "bold 11px -apple-system, sans-serif";
+      const tw = c.measureText(txt).width + 14;
+      c.fillStyle = col;
+      c.fillRect(lx + legendW + 8, ly + 2, tw, 18);
+      c.fillStyle = "#0b0f15";
+      c.fillText(txt, lx + legendW + 15, ly + 14);
+    }
 
     // ---- Volume pane ----
     c.fillStyle = COLORS.axis; c.font = "10px -apple-system, sans-serif";

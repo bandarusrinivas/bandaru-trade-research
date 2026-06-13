@@ -56,7 +56,10 @@ router.get("/", async (req, res) => {
       data.getIntradayBars(ticker, "5m", "5d").catch(() => []),
     ]);
     const spot = quote?.price || chain?.underlying_price;
-    if (!spot) return res.status(404).json({ error: `No quote for ${ticker}` });
+    if (!spot) return res.status(200).json({
+      ticker, available: false,
+      error: `No quote available for ${ticker}.`,
+    });
     const contracts = chain?.contracts || [];
 
     // ── Session selection ──
@@ -268,7 +271,7 @@ router.get("/", async (req, res) => {
           + "trade advice.",
     });
   } catch (e) {
-    res.status(500).json({ error: e.message, ticker });
+    res.status(200).json({ ticker, available: false, error: e?.message || String(e) });
   }
 });
 

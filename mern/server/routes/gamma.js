@@ -47,7 +47,10 @@ router.get("/", async (req, res) => {
       data.getOptionChain(ticker).catch(() => null),
     ]);
     const spot = quote?.price || chain?.underlying_price;
-    if (!spot) return res.status(404).json({ error: `No quote for ${ticker}` });
+    if (!spot) return res.status(200).json({
+      ticker, available: false,
+      error: `No quote available for ${ticker}.`,
+    });
 
     const contracts = chain?.contracts || [];
     if (!contracts.length) {
@@ -168,7 +171,12 @@ router.get("/", async (req, res) => {
           + "estimate to gauge volatility regime — not measured dealer positioning.",
     });
   } catch (e) {
-    res.status(500).json({ error: e.message, ticker });
+    // Graceful 200 with error so the GEX/gamma panel renders an empty state
+    // rather than a red error toast.
+    res.status(200).json({
+      ticker, available: false,
+      error: e?.message || String(e),
+    });
   }
 });
 

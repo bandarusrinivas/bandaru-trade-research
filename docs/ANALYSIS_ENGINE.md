@@ -73,6 +73,7 @@ Other dashboard tabs use the same building blocks:
 | Entry / Exit Alerts | `/api/analysis` | `routes/analysis.js`, `services/analysis.js` |
 | Pro Signals | `/api/analysis` | same — subset of the JSON |
 | GEX Dashboard | `/api/gex-dashboard` | `routes/gexDashboard.js`, `services/blackscholes.js` |
+| VEX Dashboard | `/api/vex-dashboard` | `routes/vexDashboard.js`, `services/blackscholes.js` |
 | Screener | `/api/screener` | `routes/screener.js` |
 | Pre-Market | `/api/premarket` | `routes/premarket.js` |
 | Option Decay | `/api/option-decay` | `routes/optionDecay.js`, `services/blackscholes.js` |
@@ -332,6 +333,27 @@ historical underlying prices.
 compute per-strike dealer gamma when the chain doesn't supply Greeks
 directly.
 
+### 5.5 VEX Dashboard
+
+`routes/vexDashboard.js` is the parallel of the GEX route built around
+**dealer Vanna Exposure** — the rate of change of dealer delta with
+respect to implied volatility (∂Δ/∂σ). Per-strike VEX is computed as
+
+```
+vex = vanna × OI × 100 × spot × (calls ? +1 : −1)
+```
+
+where `vanna` is the Black-Scholes vanna per share per 1-vol-point
+(`-φ(d1) · d2 / σ / 100`, the same for calls and puts), and the
+`±1` "naive" sign convention mirrors GEX. The resulting numbers are
+dollars of dealer delta-hedge per 1% IV move. The route reuses the same
+session-replay logic as GEX so it isn't empty after hours, and the
+flip / walls / signal labels follow the same template adapted for IV:
+
+- **Positive VEX** → dealer is net buyer of the underlying when IV
+  rises (stabilizing).
+- **Negative VEX** → dealer is net seller when IV rises (amplifying).
+
 ---
 
 ## 6. Limitations — read before trading
@@ -397,7 +419,8 @@ value-add is the integration.
 | Indicator math | `mern/server/services/indicators.js` |
 | Pivot recommendations + Momentum Surge | `mern/server/services/analysis.js` |
 | Forward levels + main analysis response | `mern/server/routes/analysis.js` |
-| Option pricing | `mern/server/services/blackscholes.js` |
+| Option pricing (incl. vanna) | `mern/server/services/blackscholes.js` |
+| VEX Dashboard | `mern/server/routes/vexDashboard.js`, `mern/client/src/components/VexDashboard.jsx` |
 | Data adapter + circuit breaker | `mern/server/services/data.js` |
 | Yahoo / Schwab adapters | `mern/server/services/yahoo.js`, `services/schwab.js` |
 | Chart rendering | `mern/client/src/chart/BandaruChart.js` |

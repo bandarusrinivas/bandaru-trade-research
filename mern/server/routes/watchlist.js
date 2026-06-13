@@ -16,7 +16,7 @@ router.get("/", async (req, res) => {
     }));
     res.json({ quotes });
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.status(200).json({ quotes: [], error: e?.message || String(e) });
   }
 });
 

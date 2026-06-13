@@ -73,7 +73,10 @@ router.get("/", async (req, res) => {
     // Spot price
     const quote = await data.getQuote(ticker);
     const spot = quote?.price;
-    if (!spot) return res.status(404).json({ error: `No quote for ${ticker}` });
+    if (!spot) return res.status(200).json({
+      ticker, available: false,
+      error: `No quote available for ${ticker}.`,
+    });
 
     // Strike — default to nearest 1-dollar ATM
     let strike = parseFloat(req.query.strike);
@@ -274,7 +277,7 @@ router.get("/", async (req, res) => {
       },
     });
   } catch (e) {
-    res.status(500).json({ error: e.message, ticker });
+    res.status(200).json({ ticker, available: false, error: e?.message || String(e) });
   }
 });
 

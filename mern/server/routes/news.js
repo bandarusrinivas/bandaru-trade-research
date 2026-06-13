@@ -386,7 +386,13 @@ router.get("/", async (req, res) => {
     cache = { data, exp: Date.now() + TTL };
     res.json({ ...data, cached: false });
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.status(200).json({
+      generated_at: new Date().toISOString(),
+      counts: { breaking: 0, stock_feed: 0, world_indexes: 0, intl_news: 0 },
+      breaking: [], stock_feed: [], world_indexes: [], intl_news: [],
+      stock_sources: {},
+      error: e?.message || String(e),
+    });
   }
 });
 

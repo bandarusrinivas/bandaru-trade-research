@@ -3,6 +3,13 @@ import { BandaruChart } from "../chart/BandaruChart.js";
 import { getCandles } from "../api.js";
 import PivotStops from "./PivotStops.jsx";
 
+// ET date in YYYY-MM-DD — used as a dependency so the chart automatically
+// re-fetches when the calendar date rolls over (the previous build kept the
+// stale pivots/CPR from yesterday until the user manually changed period).
+function etDateKey() {
+  return new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+}
+
 export default function ChartAnalysis({ ticker, analysis, refreshMs = 10000 }) {
   const canvasRef = useRef(null);
   const chartRef = useRef(null);
@@ -13,6 +20,21 @@ export default function ChartAnalysis({ ticker, analysis, refreshMs = 10000 }) {
   const [showCpr, setShowCpr] = useState(
     () => localStorage.getItem("bandaru_show_cpr") !== "false");
   const [cpr, setCpr] = useState(null);
+  const [signals, setSignals] = useState([]);
+  // Tracked separately from the auto-refresh setInterval so a midnight ET
+  // rollover forces a fresh fetch with the new pivots even mid-session.
+  const [today, setToday] = useState(() => etDateKey());
+
+  // Date-rollover watcher. Polls every 30s, updates state when the ET date
+  // string changes. Cheap, granular enough for "refresh at midnight", and
+  // doesn't require timezone-math to schedule the exact rollover moment.
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      const next = etDateKey();
+      setToday((cur) => (cur === next ? cur : next));
+    }, 30_000);
+    return () => window.clearInterval(id);
+  }, []);
 
   // Init chart once; tear it down on unmount so its DOM listener doesn't leak.
   useEffect(() => {
@@ -30,22 +52,49 @@ export default function ChartAnalysis({ ticker, analysis, refreshMs = 10000 }) {
   // Reload data when ticker / interval / period / refreshMs changes
   useEffect(() => {
     let cancelled = false;
+    // Show a loading state immediately so the user sees something instead of
+    // a black box while the first fetch is in flight.
+    chartRef.current?.setStatus?.(`Loading ${ticker} ${interval}/${period}…`);
     const load = () => getCandles(ticker, { interval, period })
       .then((d) => {
         if (cancelled) return;
         setCpr(d.cpr || null);
+        const bars = Array.isArray(d.bars) ? d.bars : [];
+        if (!bars.length) {
+          // /api/candles returns 200 with empty bars + an error map on failure
+          // (e.g. Yahoo rate-limited). Render a useful message in the canvas.
+          const err = d.errors?.bars || d.errors?.daily || d.error;
+          chartRef.current?.setStatus?.(
+            err
+              ? `No chart data for ${ticker} — ${err}`
+              : `No bars yet for ${ticker} (${interval}/${period}) — retrying…`,
+          );
+          return;
+        }
+        chartRef.current?.setStatus?.(null);
         chartRef.current?.setData({
-          bars: d.bars || [],
+          bars,
           pivots: d.pivots || analysis?.pivots || null,
           cpr: d.cpr || null,
           interval, period,
         });
+        // After the chart has drawn, surface the buy/sell signals it
+        // detected so the JSX below can render a "Signals" list.
+        setSignals(chartRef.current?.getSignals?.() || []);
       })
-      .catch(console.warn);
+      .catch((e) => {
+        if (cancelled) return;
+        chartRef.current?.setStatus?.(
+          `Chart fetch failed — ${e?.message || "unknown error"}. Retrying…`,
+        );
+        setSignals([]);
+      });
     load();
     const id = window.setInterval(load, refreshMs);
     return () => { cancelled = true; window.clearInterval(id); };
-  }, [ticker, interval, period, analysis, refreshMs]);
+  // `today` is included so a midnight ET rollover triggers a fresh fetch
+  // — the prior-day pivots / CPR depend on the date, not just the period.
+  }, [ticker, interval, period, analysis, refreshMs, today]);
 
   // Update candle style live + remember the choice
   useEffect(() => {
@@ -92,6 +141,26 @@ export default function ChartAnalysis({ ticker, analysis, refreshMs = 10000 }) {
           </div>
         </div>
         <canvas ref={canvasRef} className="chart-canvas" />
+
+        {/* Live signal strip — buy/sell arrows the chart class detected. */}
+        {signals.length > 0 ? (
+          <div className="chart-signal-strip">
+            <span className="strip-label">Signals</span>
+            {signals.slice(-8).reverse().map((s, idx) => {
+              const t = s.time ? new Date(s.time).toLocaleTimeString([], {
+                hour: "2-digit", minute: "2-digit",
+              }) : "";
+              return (
+                <span key={idx} className={`sig-chip sig-${s.type}`}>
+                  {s.type === "buy" ? "BUY" : "SELL"} @ {s.level}
+                  {" "}({s.price?.toFixed(2)})
+                  {t ? <span className="sig-time"> · {t}</span> : null}
+                </span>
+              );
+            })}
+          </div>
+        ) : null}
+
         {cpr ? (
           <div className="cpr-readout">
             <span className="cpr-chip cpr-edge">TC ${cpr.tc?.toFixed(2)}</span>

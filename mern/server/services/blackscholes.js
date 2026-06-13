@@ -25,8 +25,8 @@ function normPdf(x) {
  *   sigma implied volatility (decimal, e.g. 0.15)
  *   type  "call" | "put"
  *
- * Returns { price, delta, gamma, theta, vega, intrinsic, extrinsic }.
- * theta is per-DAY, vega is per 1-vol-point.
+ * Returns { price, delta, gamma, theta, vega, vanna, intrinsic, extrinsic }.
+ * theta is per-DAY, vega and vanna are per 1-vol-point (1% IV move).
  */
 export function blackScholes({ S, K, T, r = 0.05, sigma, type = "call" }) {
   const isCall = type === "call";
@@ -40,6 +40,7 @@ export function blackScholes({ S, K, T, r = 0.05, sigma, type = "call" }) {
       gamma: 0,
       theta: 0,
       vega: 0,
+      vanna: 0,
       intrinsic,
       extrinsic: 0,
     };
@@ -61,6 +62,9 @@ export function blackScholes({ S, K, T, r = 0.05, sigma, type = "call" }) {
 
   const gamma = normPdf(d1) / (S * sigma * sqrtT);
   const vega = (S * normPdf(d1) * sqrtT) / 100; // per 1% vol move
+  // Vanna = ∂Δ/∂σ = -φ(d1) · d2 / σ — same value for calls and puts.
+  // Divided by 100 to express "per 1-vol-point" (1% IV move), matching vega.
+  const vanna = (-normPdf(d1) * d2) / (sigma * 100);
 
   // Theta — annualized, then converted to per-day
   const term1 = -(S * normPdf(d1) * sigma) / (2 * sqrtT);
@@ -79,6 +83,7 @@ export function blackScholes({ S, K, T, r = 0.05, sigma, type = "call" }) {
     gamma,
     theta,
     vega,
+    vanna,
     intrinsic,
     extrinsic: Math.max(finalPrice - intrinsic, 0),
   };

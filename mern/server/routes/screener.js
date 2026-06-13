@@ -16,7 +16,7 @@
 //   breakout, opportunity + why + score
 import { Router } from "express";
 import * as data from "../services/data.js";
-import { adx, rsi, macd, ema, calculatePivots, ttmSqueeze } from "../services/indicators.js";
+import { adx, rsi, macd, ema, calculatePivots, ttmSqueeze, vwap } from "../services/indicators.js";
 
 const router = Router();
 
@@ -42,12 +42,14 @@ const OPP_SCORES = {
 // Classify where price sits relative to pivot levels (matches ToS "Pivots" col)
 function pivotZone(price, p) {
   if (!p || !price) return "—";
-  if (price > p.R2) return "ABOVE R2";
+  if (p.R3 != null && price > p.R3) return "ABOVE R3";
+  if (price > p.R2) return "R2→R3";
   if (price > p.R1) return "R1→R2";
   if (price > p.PP) return "PP→R1";
   if (price > p.S1) return "S1→PP";
   if (price > p.S2) return "S2→S1";
-  return "BELOW S2";
+  if (p.S3 != null && price > p.S3) return "S3→S2";
+  return "BELOW S3";
 }
 
 function squeezeLabel(sq) {
@@ -63,11 +65,6 @@ function round(n, digits = 2) {
   return Math.round(n * f) / f;
 }
 
-// ---------------------------------------------------------------------------
-// Bounded-concurrency pool. Firing every symbol at once gets the IP / Schwab
-// sidecar rate-limited; scanning a handful at a time keeps the scan well under
-// the client's timeout.
-// ---------------------------------------------------------------------------
 const CONCURRENCY = Math.max(1, parseInt(process.env.SCREENER_CONCURRENCY || "5", 10));
 
 async function runPool(items, worker, concurrency) {
@@ -85,7 +82,6 @@ async function runPool(items, worker, concurrency) {
   return results;
 }
 
-// Best-effort: resolve null on error OR after `ms`, never reject.
 function withTimeout(promise, ms) {
   return Promise.race([
     Promise.resolve(promise).catch(() => null),
@@ -93,8 +89,6 @@ function withTimeout(promise, ms) {
   ]);
 }
 
-// Intraday bars come back as [{t,o,h,l,c,v}] — normalize to the parallel-array
-// shape getDailyBars uses so the indicators can run on either timeframe.
 function intradayToArrays(bars) {
   return {
     highs:   bars.map((b) => b.h),
@@ -105,27 +99,52 @@ function intradayToArrays(bars) {
   };
 }
 
-// Run the indicator bundle on one timeframe's bars.
+// Analyze a single timeframe.
+// Returns the 4-line trend-stack the new spec calls for:
+//   UP   iff  close > EMA9 > EMA21 > VWAP > EMA200
+//   DOWN iff  close < EMA9 < EMA21 < VWAP < EMA200
+//   NEUTRAL otherwise (stack not fully aligned).
+// VWAP is only meaningful intraday — for daily bars it falls back to a
+// cumulative whole-history VWAP, which still gives a long-run anchor.
 function analyzeTF(bars) {
-  const { highs, lows, closes } = bars || {};
+  const { highs, lows, closes, volumes } = bars || {};
   if (!closes || closes.length < 30) return null;
-  const e8  = ema(closes, 8);
-  const e21 = ema(closes, 21);
-  const r   = rsi(closes, 14);
-  const m   = macd(closes);
-  const ad  = adx(highs, lows, closes, 14);
-  const sq  = ttmSqueeze(highs, lows, closes);
+  const e9   = ema(closes, 9);
+  const e21  = ema(closes, 21);
+  const e200 = ema(closes, 200);
+  const v    = vwap(highs, lows, closes, volumes || new Array(closes.length).fill(0));
+  const r    = rsi(closes, 14);
+  const m    = macd(closes);
+  const ad   = adx(highs, lows, closes, 14);
+  const sq   = ttmSqueeze(highs, lows, closes);
   const last = closes[closes.length - 1];
-  const e8n = e8[e8.length - 1], e21n = e21[e21.length - 1];
-  let dir = "neutral";
-  if (e8n != null && e21n != null) {
-    if (last > e8n && e8n > e21n) dir = "bull";
-    else if (last < e8n && e8n < e21n) dir = "bear";
+  const e9n  = e9.at(-1), e21n = e21.at(-1), e200n = e200.at(-1), vn = v.at(-1);
+
+  // 4-line stack alignment per the user's spec.
+  let dir = "neutral", stack = "neutral";
+  if ([e9n, e21n, e200n, vn].every((x) => x != null)) {
+    if (last > e9n && e9n > e21n && e21n > vn && vn > e200n) {
+      dir = "bull"; stack = "up";
+    } else if (last < e9n && e9n < e21n && e21n < vn && vn < e200n) {
+      dir = "bear"; stack = "down";
+    }
+    // Fallback: if EMA200 isn't yet warmed (short history), use the
+    // partial 9/21/VWAP order so brand-new tickers still surface a
+    // direction instead of being permanently NEUTRAL.
+    else if (e200n == null && [e9n, e21n, vn].every((x) => x != null)) {
+      if (last > e9n && e9n > e21n && e21n > vn) { dir = "bull"; stack = "up_partial"; }
+      else if (last < e9n && e9n < e21n && e21n < vn) { dir = "bear"; stack = "down_partial"; }
+    }
   }
-  return { e8, e21, rsi: r, macd: m, adx: ad, squeeze: sq, dir, last };
+  return {
+    e9, e21, e200, vwap: v,
+    rsi: r, macd: m, adx: ad, squeeze: sq,
+    dir, stack, last,
+    // Kept for any downstream code still reading e8 (one-tick alias).
+    e8: e9,
+  };
 }
 
-// Opportunity classifier — runs on the chosen primary timeframe.
 function classify(tf, pivots, last, volX) {
   const sq = tf.squeeze, m = tf.macd, ad = tf.adx;
   let breakout = "NONE";
@@ -142,12 +161,12 @@ function classify(tf, pivots, last, volX) {
     opp = "BULLISH BREAKOUT"; why = `Broke above R1 on ${volX.toFixed(1)}× volume`; direction = "bull";
   } else if (breakout === "BEAR BREAK") {
     opp = "BEARISH BREAKDOWN"; why = `Broke below S1 on ${volX.toFixed(1)}× volume`; direction = "bear";
-  } else if (tf.e8.length >= 2 && tf.e21.length >= 2) {
-    const e8n = tf.e8.at(-1), e8p = tf.e8.at(-2);
+  } else if (tf.e9.length >= 2 && tf.e21.length >= 2) {
+    const e9n = tf.e9.at(-1), e9p = tf.e9.at(-2);
     const e21n = tf.e21.at(-1), e21p = tf.e21.at(-2);
-    if (e8p && e8n && e21p && e21n) {
-      if (e8p <= e21p && e8n > e21n) { opp = "EMA CROSS BULL"; why = "EMA 8 crossed above EMA 21"; direction = "bull"; }
-      else if (e8p >= e21p && e8n < e21n) { opp = "EMA CROSS BEAR"; why = "EMA 8 crossed below EMA 21"; direction = "bear"; }
+    if (e9p && e9n && e21p && e21n) {
+      if (e9p <= e21p && e9n > e21n) { opp = "EMA CROSS BULL"; why = "EMA 9 crossed above EMA 21"; direction = "bull"; }
+      else if (e9p >= e21p && e9n < e21n) { opp = "EMA CROSS BEAR"; why = "EMA 9 crossed below EMA 21"; direction = "bear"; }
     }
   }
   if (opp === "NO SIGNAL" && ad.adx >= 25) {
@@ -163,7 +182,6 @@ function classify(tf, pivots, last, volX) {
   return { opp, why, direction, breakout };
 }
 
-// Multi-timeframe agreement between the 15-minute and daily trend.
 function multiTimeframe(intraDir, dailyDir) {
   const g = (d) => (d === "bull" ? "▲" : d === "bear" ? "▼" : "–");
   if (!intraDir) return { mtf: `–  ${g(dailyDir)}`, mtf_dir: "neutral" };
@@ -176,7 +194,6 @@ function multiTimeframe(intraDir, dailyDir) {
   return { mtf, mtf_dir };
 }
 
-// Annualized realized (historical) volatility, % — stdev of daily log returns.
 function realizedVol(closes, lookback = 20) {
   const rets = [];
   for (let i = 1; i < closes.length; i++) rets.push(Math.log(closes[i] / closes[i - 1]));
@@ -187,10 +204,8 @@ function realizedVol(closes, lookback = 20) {
   return Math.sqrt(variance) * Math.sqrt(252) * 100;
 }
 
-// IV values arrive as % (Yahoo) or decimal (Schwab) — normalize to %.
 const ivPct = (iv) => (iv == null || !isFinite(iv) ? null : iv > 1 ? iv : iv * 100);
 
-// ATM implied volatility — average of the nearest call + nearest put IV.
 function atmIV(contracts, spot) {
   if (!contracts?.length || !spot) return null;
   const near = (type) => contracts
@@ -201,8 +216,6 @@ function atmIV(contracts, spot) {
   return vals.reduce((a, b) => a + b, 0) / vals.length;
 }
 
-// Gamma-squeeze proxy — heaviest call open-interest strike above spot.
-// This is an OI-magnet heuristic, NOT a dealer-gamma-exposure model.
 function gammaProxy(contracts, spot) {
   const blank = { gamma_wall: null, gamma_flag: "", gamma_note: null, call_put_oi: null };
   if (!contracts?.length || !spot) return blank;
@@ -229,30 +242,21 @@ function gammaProxy(contracts, spot) {
 
 async function screenOne(sym, primaryTf) {
   try {
-    // Daily bars — drive the price block, pivots, daily trend, and realized vol.
     const daily = await data.getDailyBars(sym, "6mo");
     if (!daily.closes || daily.closes.length < 30) {
       return { ticker: sym, error: "insufficient history", score: -1 };
     }
-
-    // 15-minute bars — for the multi-timeframe column (and the primary set when
-    // the user picks the 15m window). Best-effort: optional.
     let intra = null;
     try {
       const raw = await data.getIntradayBars(sym, "15m", "5d");
       if (Array.isArray(raw) && raw.length >= 30) intra = intradayToArrays(raw);
     } catch { /* intraday optional */ }
-
     const dailyTF = analyzeTF(daily);
     const intraTF = intra ? analyzeTF(intra) : null;
-
-    // Primary timeframe — falls back to daily if 15m data is unavailable.
     const usingIntraday = primaryTf === "15m" && !!intraTF;
     const primary = usingIntraday ? intraTF : dailyTF;
     const primaryBars = usingIntraday ? intra : daily;
     const primary_tf = usingIntraday ? "15m" : "daily";
-
-    // Price block — always the daily session.
     const N = daily.closes.length;
     const last = daily.closes[N - 1];
     const prev = daily.closes[N - 2];
@@ -262,21 +266,13 @@ async function screenOne(sym, primaryTf) {
     const vol  = daily.volumes[N - 1];
     const netChg = prev != null ? last - prev : null;
     const chgPct = prev ? ((last - prev) / prev) * 100 : 0;
-
-    // Standard floor-trader pivots from yesterday's daily bar.
     const pivots = calculatePivots(daily.highs[N - 2], daily.lows[N - 2], prev);
     const zone   = pivotZone(last, pivots);
-
-    // Relative volume on the primary timeframe.
     const pv = primaryBars.volumes;
     const avgVol = pv.slice(-20).reduce((a, b) => a + b, 0) / Math.min(20, pv.length);
     const volX = avgVol ? pv[pv.length - 1] / avgVol : null;
-
-    // Classify + multi-timeframe agreement.
     const { opp, why, direction, breakout } = classify(primary, pivots, primary.last, volX);
     const { mtf, mtf_dir } = multiTimeframe(intraTF?.dir || null, dailyTF.dir);
-
-    // IV / HV + gamma proxy — best-effort from the option chain.
     let iv_atm = null, iv_hv = null;
     let gamma = { gamma_wall: null, gamma_flag: "", gamma_note: null, call_put_oi: null };
     const hv = realizedVol(daily.closes, 20);
@@ -286,49 +282,52 @@ async function screenOne(sym, primaryTf) {
       if (iv_atm != null && hv && hv > 0) iv_hv = iv_atm / hv;
       gamma = gammaProxy(chain.contracts, last);
     }
+    // 15-minute volume — latest 15m bar's traded volume, distinct from the
+    // primary-timeframe volume. The screener UI gets a dedicated column for
+    // this so traders can tell "high participation right now" apart from
+    // "high participation today."
+    const vol15m = intra && intra.volumes ? intra.volumes.at(-1) : null;
+    const avgVol15m = intra && intra.volumes && intra.volumes.length >= 20
+      ? intra.volumes.slice(-21, -1).reduce((a, b) => a + b, 0) / 20
+      : null;
+    const vol15mX = avgVol15m ? vol15m / avgVol15m : null;
+
+    // Trend stack — human-readable label exposing the 4-line alignment
+    // ("UP" / "DOWN" / "NEUTRAL") that drives the buy/sell signals.
+    const stackLabel = primary.stack === "up" || primary.stack === "up_partial"
+      ? "UP" : primary.stack === "down" || primary.stack === "down_partial"
+      ? "DOWN" : "NEUTRAL";
 
     return {
       ticker: sym,
-      // price block
-      last:     round(last, 2),
-      mark:     round((high + low + last) / 3, 2),
-      open:     round(open, 2),
-      high:     round(high, 2),
-      low:      round(low, 2),
-      net_chg:  round(netChg, 2),
-      change_pct: round(chgPct, 2),
-      // pivots + structure
+      last: round(last, 2), mark: round((high + low + last) / 3, 2),
+      open: round(open, 2), high: round(high, 2), low: round(low, 2),
+      net_chg: round(netChg, 2), change_pct: round(chgPct, 2),
       pivots: {
         PP: round(pivots.PP, 2),
-        R1: round(pivots.R1, 2), R2: round(pivots.R2, 2),
-        S1: round(pivots.S1, 2), S2: round(pivots.S2, 2),
+        R1: round(pivots.R1, 2), R2: round(pivots.R2, 2), R3: round(pivots.R3, 2),
+        S1: round(pivots.S1, 2), S2: round(pivots.S2, 2), S3: round(pivots.S3, 2),
       },
       pivot_zone: zone,
-      // momentum — on the primary timeframe
       primary_tf,
-      trend:    (primary.adx.trend || "Neutral").toUpperCase(),
-      rsi:      round(primary.rsi, 1),
-      adx:      round(primary.adx.adx, 1),
-      // multi-timeframe
-      mtf,
-      mtf_dir,
-      // volatility
-      iv_atm:   round(iv_atm, 1),
-      iv_hv:    round(iv_hv, 2),
-      hv:       round(hv, 1),
-      // volume
-      volume:   vol,
-      volume_x_avg: round(volX, 2),
-      // squeeze + breakout + gamma
+      trend: (primary.adx.trend || "Neutral").toUpperCase(),
+      // New: stack-alignment trend (UP / DOWN / NEUTRAL) per the user's
+      // 9>21>VWAP>200 spec. Distinct from `trend` which is ADX directional.
+      trend_stack: stackLabel,
+      ema9:   round(primary.e9?.at(-1),   2),
+      ema21:  round(primary.e21?.at(-1),  2),
+      ema200: round(primary.e200?.at(-1), 2),
+      vwap:   round(primary.vwap?.at(-1), 2),
+      rsi: round(primary.rsi, 1), adx: round(primary.adx.adx, 1),
+      mtf, mtf_dir,
+      iv_atm: round(iv_atm, 1), iv_hv: round(iv_hv, 2), hv: round(hv, 1),
+      volume: vol, volume_x_avg: round(volX, 2),
+      volume_15m: vol15m, volume_15m_x_avg: round(vol15mX, 2),
       ttm_squeeze: squeezeLabel(primary.squeeze),
       breakout,
-      gamma_wall: gamma.gamma_wall,
-      gamma_flag: gamma.gamma_flag,
-      gamma_note: gamma.gamma_note,
-      call_put_oi: gamma.call_put_oi,
-      // classifier
-      opportunity: opp,
-      direction,
+      gamma_wall: gamma.gamma_wall, gamma_flag: gamma.gamma_flag,
+      gamma_note: gamma.gamma_note, call_put_oi: gamma.call_put_oi,
+      opportunity: opp, direction,
       score: OPP_SCORES[opp] ?? 0,
       why,
     };
@@ -339,8 +338,7 @@ async function screenOne(sym, primaryTf) {
 
 router.get("/", async (req, res) => {
   const raw = (req.query.symbols || "").toString().trim();
-  const timeframe = (req.query.timeframe || "daily").toString().toLowerCase() === "15m"
-    ? "15m" : "daily";
+  const timeframe = (req.query.timeframe || "daily").toString().toLowerCase() === "15m" ? "15m" : "daily";
   const symbols = raw
     ? raw.split(",").map((s) => s.trim().toUpperCase()).filter(Boolean).slice(0, 70)
     : DEFAULT_LIST;
@@ -348,17 +346,14 @@ router.get("/", async (req, res) => {
   try {
     const results = await runPool(symbols, (s) => screenOne(s, timeframe), CONCURRENCY);
     res.json({
-      results,
-      count: results.length,
+      results, count: results.length,
       ok_count: results.filter((r) => !r.error).length,
       error_count: results.filter((r) => r.error).length,
-      timeframe,
-      concurrency: CONCURRENCY,
-      elapsed_ms: Date.now() - start,
-      cached: false,
+      timeframe, concurrency: CONCURRENCY,
+      elapsed_ms: Date.now() - start, cached: false,
     });
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.status(200).json({ results: [], count: 0, ok_count: 0, error_count: 0, error: e?.message || String(e) });
   }
 });
 

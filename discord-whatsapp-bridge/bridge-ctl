@@ -1,0 +1,167 @@
+#!/usr/bin/env bash
+# bridge-ctl — control the discord-whatsapp-bridge daemon.
+#
+#   ./bridge-ctl install     install the launchd schedule (Mon-Fri 7:30am CT
+#                            start, 3:00pm CT stop)
+#   ./bridge-ctl uninstall   remove the schedule
+#   ./bridge-ctl start       start the bot RIGHT NOW (one-off, runs until
+#                            BRIDGE_STOP_TIME like a scheduled run)
+#   ./bridge-ctl stop        stop the currently-running bot
+#   ./bridge-ctl status      show schedule + run state
+#   ./bridge-ctl logs        tail the bridge log
+#   ./bridge-ctl restart     stop + start now
+#
+# Assumes you're on macOS with launchd. Node 18+ must be on PATH.
+
+set -euo pipefail
+
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+LABEL="com.bandaru.discord-whatsapp-bridge"
+PLIST_SRC="$DIR/scripts/$LABEL.plist"
+PLIST_DEST="$HOME/Library/LaunchAgents/$LABEL.plist"
+RUNNER="$DIR/scripts/bridge-runner.sh"
+PID_FILE="$DIR/.bridge.pid"
+LOG_DIR="$DIR/logs"
+LOG_FILE="$LOG_DIR/bridge.log"
+UID_NUM="$(id -u)"
+DOMAIN="gui/$UID_NUM"
+
+cmd="${1:-help}"
+
+ensure_node() {
+  if ! command -v node >/dev/null 2>&1; then
+    echo "❌ node not found on PATH. Install Node 18+ (e.g. \`brew install node\`)." >&2
+    exit 1
+  fi
+}
+
+ensure_deps() {
+  if [ ! -d "$DIR/node_modules" ]; then
+    echo "Installing npm dependencies…"
+    (cd "$DIR" && npm install)
+  fi
+}
+
+ensure_env() {
+  if [ ! -f "$DIR/.env" ]; then
+    echo "❌ Missing $DIR/.env  — copy .env.example to .env and fill in values." >&2
+    exit 1
+  fi
+}
+
+install_plist() {
+  ensure_node
+  ensure_deps
+  ensure_env
+  mkdir -p "$LOG_DIR" "$HOME/Library/LaunchAgents"
+  # Substitute @@PROJECT_DIR@@ with the real path.
+  sed "s|@@PROJECT_DIR@@|$DIR|g" "$PLIST_SRC" > "$PLIST_DEST"
+  # bootout an old instance (ignore failure), then bootstrap fresh.
+  launchctl bootout "$DOMAIN/$LABEL" 2>/dev/null || true
+  launchctl bootstrap "$DOMAIN" "$PLIST_DEST"
+  launchctl enable "$DOMAIN/$LABEL" 2>/dev/null || true
+  echo "✅ Installed schedule: $LABEL (Mon-Fri 07:30–15:00 CT)"
+  echo "   plist: $PLIST_DEST"
+  # Friendly TZ warning.
+  local sys_tz; sys_tz="$(readlink /etc/localtime | sed 's|.*/zoneinfo/||')"
+  if [ "$sys_tz" != "America/Chicago" ]; then
+    echo "⚠️  Your system timezone is $sys_tz, not America/Chicago."
+    echo "    launchd fires by *local* time. The start time will fire at 07:30 $sys_tz,"
+    echo "    but the runner still STOPS at 15:00 America/Chicago."
+    echo "    Edit Hour/Minute in $PLIST_SRC if you want a different start."
+  fi
+}
+
+uninstall_plist() {
+  if [ -f "$PLIST_DEST" ]; then
+    launchctl bootout "$DOMAIN/$LABEL" 2>/dev/null || true
+    rm -f "$PLIST_DEST"
+    echo "🗑  Removed schedule: $LABEL"
+  else
+    echo "Not installed."
+  fi
+}
+
+start_now() {
+  ensure_node
+  ensure_deps
+  ensure_env
+  if [ -f "$PID_FILE" ] && kill -0 "$(cat "$PID_FILE")" 2>/dev/null; then
+    echo "Already running (pid=$(cat "$PID_FILE"))"
+    exit 0
+  fi
+  mkdir -p "$LOG_DIR"
+  # Detach the runner so the shell can return immediately.
+  nohup bash "$RUNNER" >> "$LOG_DIR/runner.log" 2>&1 &
+  disown || true
+  sleep 1
+  if [ -f "$PID_FILE" ]; then
+    echo "▶️  Started — bot pid $(cat "$PID_FILE"). Tail logs with: ./bridge-ctl logs"
+  else
+    echo "▶️  Started runner. Tail logs with: ./bridge-ctl logs"
+  fi
+}
+
+stop_now() {
+  local stopped=0
+  if [ -f "$PID_FILE" ]; then
+    local pid; pid="$(cat "$PID_FILE")"
+    if kill -0 "$pid" 2>/dev/null; then
+      kill -TERM "$pid" 2>/dev/null || true
+      echo "Sent SIGTERM to bot pid $pid"
+      stopped=1
+    fi
+    rm -f "$PID_FILE"
+  fi
+  # Kill any orphan runner instance too.
+  pkill -f "scripts/bridge-runner.sh" 2>/dev/null && { echo "Stopped runner."; stopped=1; } || true
+  [ "$stopped" -eq 0 ] && echo "Nothing running."
+}
+
+status() {
+  echo "── schedule ──"
+  if [ -f "$PLIST_DEST" ]; then
+    echo "plist installed at $PLIST_DEST"
+    launchctl print "$DOMAIN/$LABEL" 2>/dev/null \
+      | grep -E "state|last exit|next firing|program" \
+      | sed 's/^/  /' || true
+  else
+    echo "not installed (run: ./bridge-ctl install)"
+  fi
+  echo
+  echo "── runtime ──"
+  if [ -f "$PID_FILE" ]; then
+    local pid; pid="$(cat "$PID_FILE")"
+    if kill -0 "$pid" 2>/dev/null; then
+      echo "bot running (pid=$pid)"
+    else
+      echo "stale pid file ($pid) — bot not actually running"
+    fi
+  else
+    echo "bot not running"
+  fi
+}
+
+logs() {
+  if [ ! -f "$LOG_FILE" ]; then
+    echo "No log file yet at $LOG_FILE"
+    exit 0
+  fi
+  tail -n 50 -f "$LOG_FILE"
+}
+
+usage() {
+  sed -n '2,18p' "$0" | sed 's/^# \{0,1\}//'
+}
+
+case "$cmd" in
+  install)   install_plist ;;
+  uninstall) uninstall_plist ;;
+  start)     start_now ;;
+  stop)      stop_now ;;
+  restart)   stop_now; start_now ;;
+  status)    status ;;
+  logs)      logs ;;
+  help|--help|-h) usage ;;
+  *) usage; exit 1 ;;
+esac

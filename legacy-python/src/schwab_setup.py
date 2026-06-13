@@ -10,7 +10,26 @@ import sys
 
 from dotenv import load_dotenv
 
-load_dotenv()
+# Load .env from the first path that exists. This script runs in TWO contexts:
+#   1. Inside the Schwab sidecar container — .env is mounted at /app/.env
+#   2. From the host venv via auth-schwab.command — .env is at the project
+#      root (one level above legacy-python/).
+# Explicit paths instead of find_dotenv() because find_dotenv() walks the
+# call stack via sys._getframe() and asserts on sourceless module loaders
+# (a problem if we ever ship .pyc-only).
+_HERE = os.path.dirname(os.path.abspath(__file__))
+_CANDIDATE_ENV_PATHS = [
+    "/app/.env",                                    # Docker sidecar
+    os.path.normpath(os.path.join(_HERE, "..", ".env")),       # legacy-python/.env
+    os.path.normpath(os.path.join(_HERE, "..", "..", ".env")), # project root
+    os.path.join(os.getcwd(), ".env"),              # current working dir
+]
+_loaded_from = None
+for _p in _CANDIDATE_ENV_PATHS:
+    if os.path.isfile(_p):
+        load_dotenv(_p, override=False)
+        _loaded_from = _p
+        break
 
 api_key = os.environ.get("SCHWAB_API_KEY")
 app_secret = os.environ.get("SCHWAB_APP_SECRET")

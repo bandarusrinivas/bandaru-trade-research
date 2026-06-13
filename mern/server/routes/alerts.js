@@ -85,7 +85,14 @@ router.get("/", async (req, res) => {
     cache.exp = Date.now() + TTL;
     res.json({ ...data, cached: false });
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    // Best-effort feed — surface as 200 + empty list so the UI doesn't show
+    // a red error strip when one underlying source flakes.
+    res.status(200).json({
+      generated_at: new Date().toISOString(),
+      count: 0,
+      alerts: [],
+      error: e?.message || String(e),
+    });
   }
 });
 

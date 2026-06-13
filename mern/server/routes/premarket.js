@@ -178,7 +178,7 @@ router.get("/", async (req, res) => {
           + "Educational scan — not a trade recommendation.",
     });
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.status(200).json({ results: [], errors: [], count: 0, error: e?.message || String(e) });
   }
 });
 

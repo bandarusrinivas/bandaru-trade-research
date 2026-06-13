@@ -144,6 +144,53 @@ export function adx(highs, lows, closes, period = 14) {
   };
 }
 
+// ---------- VWAP (Volume Weighted Average Price) ----------
+// Cumulative session VWAP from the first bar provided.
+//   VWAP[i] = Σ (typical[k] · volume[k]) / Σ volume[k]   for k = 0..i
+//   typical[k] = (high[k] + low[k] + close[k]) / 3
+//
+// Caller controls session boundaries by passing the right slice of bars.
+// For a single-day intraday chart, just pass that day's bars — the VWAP
+// will reset naturally because the cumulative sums start fresh.
+//
+// For multi-day intraday data, callers should reset VWAP at each session
+// open (use computeSessionVWAP below, which detects session boundaries
+// from a parallel "session id" array — typically the ET date string).
+export function vwap(highs, lows, closes, volumes) {
+  const n = closes?.length || 0;
+  const out = new Array(n).fill(null);
+  let cumPV = 0, cumV = 0;
+  for (let i = 0; i < n; i++) {
+    const tp = (highs[i] + lows[i] + closes[i]) / 3;
+    const v = volumes[i] || 0;
+    cumPV += tp * v;
+    cumV  += v;
+    out[i] = cumV > 0 ? cumPV / cumV : null;
+  }
+  return out;
+}
+
+// Session-aware VWAP — resets the cumulative sums when sessionIds[i] differs
+// from sessionIds[i-1]. Pass an array of ET date strings (one per bar) and
+// the VWAP starts fresh at each new trading day.
+export function vwapBySession(highs, lows, closes, volumes, sessionIds) {
+  const n = closes?.length || 0;
+  const out = new Array(n).fill(null);
+  let cumPV = 0, cumV = 0, currentSession = null;
+  for (let i = 0; i < n; i++) {
+    if (sessionIds[i] !== currentSession) {
+      cumPV = 0; cumV = 0;
+      currentSession = sessionIds[i];
+    }
+    const tp = (highs[i] + lows[i] + closes[i]) / 3;
+    const v = volumes[i] || 0;
+    cumPV += tp * v;
+    cumV  += v;
+    out[i] = cumV > 0 ? cumPV / cumV : null;
+  }
+  return out;
+}
+
 // ---------- Bollinger Bands ----------
 export function bbands(values, period = 20, mult = 2.0) {
   if (values.length < period) return null;
