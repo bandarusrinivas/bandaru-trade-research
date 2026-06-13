@@ -139,11 +139,24 @@ export class BandaruChart {
     this.candleStyle = "regular";  // regular | heikin
     this.viewStart = 0;
     this.viewSlots = null;
+    // Mouse-hover state: cursor coordinates + which bar is under the cursor.
+    // null while the mouse is not over the canvas — when null, no crosshair
+    // / tooltip is drawn and the legend shows the last bar's values.
+    this.mouseX = null;
+    this.mouseY = null;
+    this.hoverIdx = null;
     this._setupHiDPI();
     // Keep a handler reference so destroy() can detach it (an inline arrow
     // can't be removed, which would leak the instance if the chart is rebuilt).
     this._onWheelBound = (e) => this._onWheel(e);
     this.canvas.addEventListener("wheel", this._onWheelBound, { passive: false });
+    // Mouse-hover crosshair + tooltip — TradingView/ToS style. `mousemove`
+    // updates the hover coordinates and redraws; `mouseleave` clears them.
+    // rAF-throttled so fast mouse moves don't redraw 200 times/sec.
+    this._onMouseMoveBound = (e) => this._onMouseMove(e);
+    this._onMouseLeaveBound = () => this._onMouseLeave();
+    this.canvas.addEventListener("mousemove", this._onMouseMoveBound);
+    this.canvas.addEventListener("mouseleave", this._onMouseLeaveBound);
     // Re-measure whenever the canvas's box changes — fixes the case where the
     // canvas had zero size at construction (parent not yet laid out) and the
     // case where the user resizes the window after the chart is mounted.
@@ -157,12 +170,44 @@ export class BandaruChart {
     }
   }
 
+  _onMouseMove(e) {
+    const rect = this.canvas.getBoundingClientRect();
+    this.mouseX = e.clientX - rect.left;
+    this.mouseY = e.clientY - rect.top;
+    // rAF throttle — coalesce multiple mouse events into one redraw frame.
+    if (!this._hoverRaf) {
+      this._hoverRaf = requestAnimationFrame(() => {
+        this._hoverRaf = null;
+        this.draw();
+      });
+    }
+  }
+
+  _onMouseLeave() {
+    this.mouseX = null;
+    this.mouseY = null;
+    this.hoverIdx = null;
+    this.draw();
+  }
+
   // Detach DOM listeners so the instance can be garbage-collected. Call this
   // from the React component's effect cleanup when the chart is torn down.
   destroy() {
     if (this._onWheelBound) {
       this.canvas.removeEventListener("wheel", this._onWheelBound);
       this._onWheelBound = null;
+    }
+    if (this._onMouseMoveBound) {
+      this.canvas.removeEventListener("mousemove", this._onMouseMoveBound);
+      this._onMouseMoveBound = null;
+    }
+    if (this._onMouseLeaveBound) {
+      this.canvas.removeEventListener("mouseleave", this._onMouseLeaveBound);
+      this._onMouseLeaveBound = null;
+    }
+    if (this._hoverRaf) {
+      try { cancelAnimationFrame(this._hoverRaf); } catch (_e) { /* ignore */ }
+      this._hoverRaf = null;
     }
     if (this._ro) {
       try { this._ro.disconnect(); } catch (_e) { /* ignore */ }
@@ -478,14 +523,33 @@ export class BandaruChart {
     }
     c.restore();
 
+    // ---- Compute hover bar index from cursor X ----
+    // When the user is hovering over the chart, the legend + tooltip read
+    // values at this index instead of the last bar. Clamped to the
+    // visible window. Saved on `this.hoverIdx` so other passes (tooltip,
+    // crosshair) can reuse it without recomputing.
+    let hoverIdx = null;
+    if (this.mouseX != null && this.mouseX >= 0 && this.mouseX <= priceW) {
+      const visibleEnd = Math.min(renderBars.length, this.viewStart + visible);
+      const rawIdx = Math.floor(this.mouseX / barW) + this.viewStart;
+      if (rawIdx >= this.viewStart && rawIdx < visibleEnd && this.bars[rawIdx]) {
+        hoverIdx = rawIdx;
+      }
+    }
+    this.hoverIdx = hoverIdx;
+
     // ---- Legend overlay (top-left) — which color is which line ----
     // ThinkOrSwim / TradingView convention: small floating panel naming the
-    // overlays + their current value at the last bar.
+    // overlays + their current value. Shows the LAST bar's values normally,
+    // but switches to the HOVERED bar's values while the cursor is over
+    // the chart so the user can read indicator readings at any point in
+    // history without having to compute by eye.
+    const idx = hoverIdx != null ? hoverIdx : (e9.length - 1);
     const legendItems = [
-      { label: "EMA 9",   color: COLORS.ema9,   v: e9.at(-1) },
-      { label: "EMA 21",  color: COLORS.ema21,  v: e21.at(-1) },
-      { label: "VWAP",    color: COLORS.vwap,   v: vwapArr.at(-1) },
-      { label: "EMA 200", color: COLORS.ema200, v: e200.at(-1) },
+      { label: "EMA 9",   color: COLORS.ema9,   v: e9[idx] },
+      { label: "EMA 21",  color: COLORS.ema21,  v: e21[idx] },
+      { label: "VWAP",    color: COLORS.vwap,   v: vwapArr[idx] },
+      { label: "EMA 200", color: COLORS.ema200, v: e200[idx] },
     ];
     c.font = "bold 11px -apple-system, sans-serif";
     let lx = 8, ly = 8;
@@ -572,10 +636,10 @@ export class BandaruChart {
     c.fillStyle = COLORS.axis; c.textAlign = "center";
     const tickCount = Math.min(8, Math.max(4, Math.floor(this.w / 130)));
     for (let i = 0; i < tickCount; i++) {
-      const idx = Math.floor(((this.bars.length - 1) * i) / Math.max(1, tickCount - 1));
-      const b = this.bars[idx];
+      const tickIdx = Math.floor(((this.bars.length - 1) * i) / Math.max(1, tickCount - 1));
+      const b = this.bars[tickIdx];
       if (!b) continue;
-      const cx = xBar(idx);
+      const cx = xBar(tickIdx);
       const d = new Date(b.t);
       const label = this.interval && !["1d","1wk","1mo"].includes(this.interval)
         ? d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
@@ -583,5 +647,145 @@ export class BandaruChart {
       c.fillText(label, cx, this.h - 4);
     }
     c.textAlign = "left";
+
+    // ─────────────────────────────────────────────────────────────────
+    // Hover crosshair + tooltip — TradingView/ToS style
+    // ─────────────────────────────────────────────────────────────────
+    // Renders LAST so it draws on top of everything else. Only active
+    // when the cursor is over the canvas (mouseX/Y populated by
+    // _onMouseMove). Three layers:
+    //   1. Vertical line through hovered bar — spans price+vol+macd
+    //   2. Horizontal line at cursor Y — price pane only
+    //   3. Axis labels (price on right, time on bottom)
+    //   4. Floating tooltip box with bar details + indicator values
+    if (hoverIdx != null && this.mouseX != null && this.mouseY != null) {
+      const bar = this.bars[hoverIdx];
+      const bx = xBar(hoverIdx);
+
+      // Crosshair — dashed grey lines
+      c.save();
+      c.strokeStyle = "rgba(184,192,204,0.55)";
+      c.lineWidth = 1;
+      c.setLineDash([3, 3]);
+      // Vertical: spans price pane through macd pane
+      c.beginPath();
+      c.moveTo(bx, 0);
+      c.lineTo(bx, ttmY + ttmH);
+      c.stroke();
+      // Horizontal: only in price pane, and only if cursor is inside it
+      if (this.mouseY >= 0 && this.mouseY <= priceH) {
+        c.beginPath();
+        c.moveTo(0, this.mouseY);
+        c.lineTo(priceW, this.mouseY);
+        c.stroke();
+      }
+      c.setLineDash([]);
+      c.restore();
+
+      // Price label on right axis (only when cursor is in price pane)
+      if (this.mouseY >= 0 && this.mouseY <= priceH) {
+        const priceAtCursor = hi - (this.mouseY / priceH) * (hi - lo);
+        const priceTxt = priceAtCursor.toFixed(2);
+        c.font = "bold 10px ui-monospace, monospace";
+        const tw = c.measureText(priceTxt).width + 10;
+        c.fillStyle = COLORS.gridMajor;
+        c.fillRect(priceW + 1, this.mouseY - 9, tw, 18);
+        c.fillStyle = "#e6edf3";
+        c.textAlign = "left"; c.textBaseline = "middle";
+        c.fillText(priceTxt, priceW + 6, this.mouseY);
+        c.textBaseline = "alphabetic";
+      }
+
+      // Time label on bottom axis (always)
+      const t = new Date(bar.t);
+      const timeTxt = this.interval && !["1d","1wk","1mo"].includes(this.interval)
+        ? t.toLocaleString([], {
+            month: "short", day: "numeric",
+            hour: "2-digit", minute: "2-digit",
+          })
+        : t.toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" });
+      c.font = "bold 10px ui-monospace, monospace";
+      const ttw = c.measureText(timeTxt).width + 12;
+      c.fillStyle = COLORS.gridMajor;
+      c.fillRect(Math.max(0, Math.min(priceW - ttw, bx - ttw / 2)), ttmY + ttmH + 2, ttw, 16);
+      c.fillStyle = "#e6edf3";
+      c.textAlign = "center";
+      c.fillText(timeTxt, Math.max(ttw / 2, Math.min(priceW - ttw / 2, bx)), ttmY + ttmH + 13);
+      c.textAlign = "left";
+
+      // Tooltip box — OHLCV + indicator values at the hovered bar.
+      const dispBar = renderBars[hoverIdx] || bar;
+      const chg = dispBar.c - dispBar.o;
+      const chgPct = dispBar.o ? (chg / dispBar.o) * 100 : 0;
+      const fmt = (v) => v == null || !isFinite(v) ? "—" : v.toFixed(2);
+      const fmtVol = (v) => v == null ? "—"
+        : v >= 1e9 ? (v / 1e9).toFixed(2) + "B"
+        : v >= 1e6 ? (v / 1e6).toFixed(2) + "M"
+        : v >= 1e3 ? (v / 1e3).toFixed(1) + "K"
+        : String(v);
+
+      const lines = [
+        ["Time", t.toLocaleString([], {
+          month: "short", day: "numeric",
+          hour: "2-digit", minute: "2-digit",
+        })],
+        ["O", fmt(dispBar.o)],
+        ["H", fmt(dispBar.h)],
+        ["L", fmt(dispBar.l)],
+        ["C", `${fmt(dispBar.c)}  ${chg >= 0 ? "+" : ""}${chg.toFixed(2)} (${chgPct >= 0 ? "+" : ""}${chgPct.toFixed(2)}%)`],
+        ["V", fmtVol(dispBar.v)],
+        ["EMA 9",   fmt(e9[hoverIdx])],
+        ["EMA 21",  fmt(e21[hoverIdx])],
+        ["VWAP",    fmt(vwapArr[hoverIdx])],
+        ["EMA 200", fmt(e200[hoverIdx])],
+      ];
+      // Layout
+      c.font = "11px ui-monospace, monospace";
+      const padX = 9, padY = 6, lineH = 14;
+      let maxW = 0;
+      for (const [k, v] of lines) {
+        const w = c.measureText(`${k}  ${v}`).width;
+        if (w > maxW) maxW = w;
+      }
+      const tipW = maxW + padX * 2;
+      const tipH = lines.length * lineH + padY * 2;
+      // Position: prefer top-right of cursor; flip horizontally / vertically
+      // if it would overflow the canvas, so the tooltip is always fully on-screen.
+      let tipX = this.mouseX + 14;
+      let tipY = this.mouseY + 14;
+      if (tipX + tipW > priceW) tipX = this.mouseX - tipW - 14;
+      if (tipY + tipH > priceH) tipY = this.mouseY - tipH - 14;
+      tipX = Math.max(2, tipX);
+      tipY = Math.max(2, tipY);
+      // Background + border
+      c.fillStyle = "rgba(11,15,21,0.92)";
+      c.strokeStyle = COLORS.gridMajor;
+      c.fillRect(tipX, tipY, tipW, tipH);
+      c.strokeRect(tipX, tipY, tipW, tipH);
+      // Lines
+      c.textBaseline = "top";
+      for (let i = 0; i < lines.length; i++) {
+        const [k, v] = lines[i];
+        const y = tipY + padY + i * lineH;
+        // Color the C line green/red based on bar direction
+        if (k === "C") {
+          c.fillStyle = chg >= 0 ? COLORS.bull : COLORS.bear;
+        } else if (k === "EMA 9") {
+          c.fillStyle = COLORS.ema9;
+        } else if (k === "EMA 21") {
+          c.fillStyle = COLORS.ema21;
+        } else if (k === "VWAP") {
+          c.fillStyle = COLORS.vwap;
+        } else if (k === "EMA 200") {
+          c.fillStyle = COLORS.ema200;
+        } else if (k === "Time") {
+          c.fillStyle = COLORS.axis;
+        } else {
+          c.fillStyle = "#e6edf3";
+        }
+        c.fillText(`${k.padEnd(8)} ${v}`, tipX + padX, y);
+      }
+      c.textBaseline = "alphabetic";
+    }
   }
 }

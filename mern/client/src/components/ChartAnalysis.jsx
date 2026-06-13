@@ -111,33 +111,83 @@ export default function ChartAnalysis({ ticker, analysis, refreshMs = 10000 }) {
   return (
     <div className="chart-wrap">
       <div className="chart-card">
+        {/* Clean segmented controls — distinct sections for interval
+            (candle resolution), range (window of history), candle style,
+            CPR toggle, and zoom. Each section has its own uppercase label
+            and a tight, joined button row. Subtle vertical dividers
+            between sections so the two date controls don't blur into
+            one long button strip. */}
         <div className="chart-controls">
-          <div className="control-group">
-            {["1m", "5m", "15m", "30m", "1h", "1d"].map((i) => (
-              <button key={i} className={interval === i ? "active" : ""} onClick={() => setInterval_(i)}>{i}</button>
-            ))}
+          <div className="control-section">
+            <span className="control-label">Interval</span>
+            <div className="segmented">
+              {["1m", "5m", "15m", "30m", "1h", "1d"].map((i) => (
+                <button key={i}
+                        className={interval === i ? "active" : ""}
+                        onClick={() => setInterval_(i)}
+                        title={`Candle interval: ${i}`}>
+                  {i}
+                </button>
+              ))}
+            </div>
           </div>
-          <div className="control-group">
-            {["1d", "2d", "3d", "5d", "1mo", "3mo", "6mo", "1y"].map((p) => (
-              <button key={p} className={period === p ? "active" : ""} onClick={() => setPeriod(p)}>{p}</button>
-            ))}
+
+          <div className="control-divider" />
+
+          <div className="control-section">
+            <span className="control-label">Range</span>
+            <div className="segmented">
+              {["1d", "2d", "3d", "5d", "1mo", "3mo", "6mo", "1y"].map((p) => (
+                <button key={p}
+                        className={period === p ? "active" : ""}
+                        onClick={() => setPeriod(p)}
+                        title={`Window of history: ${p}`}>
+                  {p}
+                </button>
+              ))}
+            </div>
           </div>
-          <div className="control-group">
-            {["regular", "heikin"].map((s) => (
-              <button key={s} className={candleStyle === s ? "active" : ""} onClick={() => setCandleStyle(s)}>
-                {s === "regular" ? "Regular" : "Heikin-Ashi"}
+
+          <div className="control-divider" />
+
+          <div className="control-section">
+            <span className="control-label">Style</span>
+            <div className="segmented">
+              {["regular", "heikin"].map((s) => (
+                <button key={s}
+                        className={candleStyle === s ? "active" : ""}
+                        onClick={() => setCandleStyle(s)}>
+                  {s === "regular" ? "Regular" : "Heikin"}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="control-divider" />
+
+          <div className="control-section">
+            <span className="control-label">Overlay</span>
+            <div className="segmented">
+              {/* Explicit On / Off label so the toggle state is unambiguous
+                  at a glance — losing that text was a regression from the
+                  earlier "CPR on" / "CPR off" wording. */}
+              <button className={showCpr ? "active" : ""}
+                      onClick={() => setShowCpr((v) => !v)}
+                      title="Toggle CPR (Central Pivot Range) band">
+                CPR {showCpr ? "On" : "Off"}
               </button>
-            ))}
+            </div>
           </div>
-          <div className="control-group">
-            <button className={showCpr ? "active" : ""} onClick={() => setShowCpr((v) => !v)}>
-              CPR {showCpr ? "on" : "off"}
-            </button>
-          </div>
-          <div className="control-group">
-            <button onClick={() => chartRef.current?.zoomBy(1.5)}>−</button>
-            <button onClick={() => chartRef.current?.zoomBy(0.7)}>+</button>
-            <button onClick={() => chartRef.current?.zoomReset()}>⤢</button>
+
+          <div className="control-divider" />
+
+          <div className="control-section">
+            <span className="control-label">Zoom</span>
+            <div className="segmented">
+              <button onClick={() => chartRef.current?.zoomBy(1.5)} title="Zoom out">−</button>
+              <button onClick={() => chartRef.current?.zoomBy(0.7)} title="Zoom in">+</button>
+              <button onClick={() => chartRef.current?.zoomReset()} title="Reset zoom">⤢</button>
+            </div>
           </div>
         </div>
         <canvas ref={canvasRef} className="chart-canvas" />
@@ -161,15 +211,28 @@ export default function ChartAnalysis({ ticker, analysis, refreshMs = 10000 }) {
           </div>
         ) : null}
 
-        {cpr ? (
-          <div className="cpr-readout">
-            <span className="cpr-chip cpr-edge">TC ${cpr.tc?.toFixed(2)}</span>
-            <span className="cpr-chip cpr-pivot">Pivot ${cpr.pivot?.toFixed(2)}</span>
-            <span className="cpr-chip cpr-edge">BC ${cpr.bc?.toFixed(2)}</span>
-            <span className={`cpr-chip cpr-type cpr-${cpr.type}`}>
-              {cpr.type} CPR ({cpr.width_pct?.toFixed(2)}%) — {cpr.bias}
-            </span>
-          </div>
+        {/* CPR readout — only when the toggle is ON. If CPR data isn't
+            available (prior day failed to load), show a placeholder so
+            the user understands the toggle worked but the data layer
+            didn't return anything. Avoids the earlier silent-empty case
+            where toggling CPR "on" appeared to do nothing. */}
+        {showCpr ? (
+          cpr ? (
+            <div className="cpr-readout">
+              <span className="cpr-chip cpr-edge">TC ${cpr.tc?.toFixed(2)}</span>
+              <span className="cpr-chip cpr-pivot">Pivot ${cpr.pivot?.toFixed(2)}</span>
+              <span className="cpr-chip cpr-edge">BC ${cpr.bc?.toFixed(2)}</span>
+              <span className={`cpr-chip cpr-type cpr-${cpr.type}`}>
+                {cpr.type} CPR ({cpr.width_pct?.toFixed(2)}%) — {cpr.bias}
+              </span>
+            </div>
+          ) : (
+            <div className="cpr-readout">
+              <span className="cpr-chip cpr-unavailable">
+                CPR data unavailable — waiting for prior-day OHLC
+              </span>
+            </div>
+          )
         ) : null}
       </div>
       <PivotStops ticker={ticker} />

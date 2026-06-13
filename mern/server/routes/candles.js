@@ -19,11 +19,16 @@ router.get("/", async (req, res) => {
   const ticker = (req.query.ticker || "SPY").toString().toUpperCase();
   const interval = (req.query.interval || "5m").toString();
   const period = (req.query.period || "1d").toString();
-  // Map ranges that aren't direct yahoo periods.
-  const lookback = (period === "3d" || period === "2d") ? "5d" : period;
+  // Pass the requested period DIRECTLY to the adapter — each adapter
+  // handles its own translation. Yahoo maps 2d/3d → fetch "5d" + trim;
+  // Schwab maps 2d/3d → start_datetime N days back. The previous
+  // implementation pre-mapped 2d/3d → 5d here, which prevented yahoo.js
+  // from knowing the user wanted 2d or 3d (it just saw "5d"), so the
+  // trim-to-N-sessions logic in yahoo.js never fired and "3d" always
+  // returned 5 days of bars regardless of what the user clicked.
 
   const [barsR, prevR] = await Promise.allSettled([
-    data.getIntradayBars(ticker, interval, lookback),
+    data.getIntradayBars(ticker, interval, period),
     data.getPreviousDay(ticker),
   ]);
 

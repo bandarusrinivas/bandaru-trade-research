@@ -177,21 +177,49 @@ export async function getDailyBars(symbol, period = "6mo") {
 
 export async function getIntradayBars(symbol, interval = "5m", period = "1d") {
   return memo(`intraday:${symbol}:${interval}:${period}`, TTL.intraday, async () => {
-    const periodMap = { "1d": 1, "2d": 2, "5d": 5 };
-    const days = periodMap[period] || 1;
-    const period1 = new Date(Date.now() - days * 86400000);
-    const result = await yahooFinance.chart(ySym(symbol), {
-      period1,
-      interval,
-    });
+    // Yahoo's native `range` parameter — returns the most recent trading
+    // session(s) anchored to Yahoo's view of calendar boundaries. This is
+    // CRITICAL on weekends: the previous implementation used
+    // `period1 = Date.now() - N*86400000` which on a Saturday picks up
+    // Friday's session PLUS Saturday's empty window, so "1d" rendered
+    // ~20 hours of bars across two distinct sessions. Switching to the
+    // native range tells Yahoo "give me the most recent ONE day" which it
+    // resolves to Friday's regular+extended hours on a weekend.
+    //
+    // Yahoo doesn't have native "2d" / "3d" ranges, so for those we
+    // request "5d" and trim client-side to the most recent N ET dates.
+    const NATIVE_RANGE = {
+      "1d":  "1d",
+      "2d":  "5d",
+      "3d":  "5d",
+      "5d":  "5d",
+      "1mo": "1mo",
+      "3mo": "3mo",
+      "6mo": "6mo",
+      "1y":  "1y",
+    };
+    const range = NATIVE_RANGE[period] || "1d";
+    const result = await yahooFinance.chart(ySym(symbol), { range, interval });
     if (!result?.quotes?.length) return [];
-    return result.quotes
-      .filter((q) => q.close != null)
-      .map((q) => ({
-        t: q.date.getTime(),
-        o: q.open, h: q.high, l: q.low, c: q.close,
-        v: q.volume || 0,
-      }));
+
+    let quotes = result.quotes.filter((q) => q.close != null);
+
+    // Trim to N most recent unique ET trading dates when the user asked
+    // for "2d" or "3d" but Yahoo gave us 5d.
+    if (period === "2d" || period === "3d") {
+      const N = period === "2d" ? 2 : 3;
+      const etDate = (q) =>
+        q.date.toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+      const allDates = Array.from(new Set(quotes.map(etDate))).sort();
+      const keep = new Set(allDates.slice(-N));
+      quotes = quotes.filter((q) => keep.has(etDate(q)));
+    }
+
+    return quotes.map((q) => ({
+      t: q.date.getTime(),
+      o: q.open, h: q.high, l: q.low, c: q.close,
+      v: q.volume || 0,
+    }));
   });
 }
 

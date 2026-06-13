@@ -271,8 +271,16 @@ def intraday():
         days = PERIOD_DAYS_INTRADAY.get(period, 1)
 
         if days == 1:
-            # Single day → today's pre-market open at 4 AM ET
-            start_dt = end_dt.replace(hour=4, minute=0, second=0, microsecond=0)
+            # Single day → most recent TRADING session's 4 AM ET premarket
+            # open. On Saturday/Sunday/holidays "today" isn't a trading day,
+            # so anchoring to today's 4 AM returns zero bars and the
+            # circuit breaker falls back to Yahoo. Walk back over weekends
+            # so the user always sees the most recent session's data.
+            candidate = end_dt
+            # Saturday = 5, Sunday = 6 in Python's weekday()
+            while candidate.weekday() >= 5:
+                candidate -= timedelta(days=1)
+            start_dt = candidate.replace(hour=4, minute=0, second=0, microsecond=0)
         else:
             # Multi-day → roll back N calendar days from now
             start_dt = end_dt - timedelta(days=days)
